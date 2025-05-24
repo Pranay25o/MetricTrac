@@ -9,24 +9,39 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/auth-provider";
 import { MeritTracLogo } from "@/components/icons/logo";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation"; // Import useSearchParams
 import { useEffect, useState } from "react";
-import { Loader2, LogIn } from "lucide-react";
+import { Loader2, LogIn, AlertCircle } from "lucide-react"; // Added AlertCircle
 import { useToast } from "@/hooks/use-toast";
-
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Added Alert components
 
 export default function LoginPage() {
   const { loginUser, user, loading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams(); // Get search params
   const { toast } = useToast();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pageAlert, setPageAlert] = useState<{ title: string, description: string } | null>(null);
 
+  useEffect(() => {
+    const messageCode = searchParams.get('auth_message');
+    if (messageCode === 'admin_only_logout') {
+      setPageAlert({
+        title: "Admin Access Required",
+        description: "This login page is for admin users only. You have been logged out."
+      });
+      // Clear the query parameter from the URL without reloading the page
+      router.replace('/', { scroll: false });
+    }
+  }, [searchParams, router]);
 
   useEffect(() => {
     if (!loading && user) {
+      // If user is logged in, redirect to dashboard.
+      // The specific case of non-admin on '/' is handled by AuthProvider's onAuthStateChanged.
       router.push('/dashboard');
     }
   }, [user, loading, router]);
@@ -38,18 +53,22 @@ export default function LoginPage() {
       return;
     }
     setIsSubmitting(true);
+    setPageAlert(null); // Clear any previous page alerts on new login attempt
     try {
       await loginUser(email, password);
-      // AuthProvider's onAuthStateChanged will handle redirect
+      // AuthProvider's onAuthStateChanged will handle redirect or further state changes
     } catch (error: any) {
       // Error toast is handled by loginUser in AuthProvider
-      setIsSubmitting(false);
+      // setIsSubmitting(false) is handled by loginUser or redirection logic
     }
-    // setIsSubmitting(false) will be handled by redirection or error in loginUser
+    // If loginUser fails and calls setLoading(false), we want to reflect that here
+    // This might be better handled if loginUser returns a status or if we rely solely on loading state from useAuth
+    // For now, loginUser sets loading to false on its own error paths.
+    // If successful, redirection will happen.
+    // If loginUser itself sets loading to false (e.g. for non-admin email), this will reflect in the button.
   };
   
-  // Show loading spinner if auth state is loading OR if already logged in and redirecting
-  if (loading || (!loading && user)) {
+  if (loading || (!loading && user && !pageAlert)) { // Show loading if auth is loading, or if user exists (and no alert is pending from redirection)
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-6 bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -57,7 +76,6 @@ export default function LoginPage() {
       </div>
     );
   }
-
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-6 bg-background">
@@ -70,17 +88,26 @@ export default function LoginPage() {
           <CardDescription>Log in to access your MeritTrac dashboard.</CardDescription>
         </CardHeader>
         <CardContent>
+          {pageAlert && (
+            <Alert variant="default" className="mb-4 border-yellow-400 bg-yellow-50 text-yellow-700 dark:border-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-300">
+              <AlertCircle className="h-4 w-4 !text-yellow-600 dark:!text-yellow-400" /> {/* Ensure icon color matches */}
+              <AlertTitle className="font-semibold">{pageAlert.title}</AlertTitle>
+              <AlertDescription>
+                {pageAlert.description}
+              </AlertDescription>
+            </Alert>
+          )}
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input 
                 id="email" 
                 type="email" 
-                placeholder="you@example.com" 
+                placeholder="admin@pescoe.com" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required 
-                disabled={isSubmitting}
+                disabled={isSubmitting || loading}
               />
             </div>
             <div className="space-y-2">
@@ -92,11 +119,11 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required 
-                disabled={isSubmitting}
+                disabled={isSubmitting || loading}
               />
             </div>
             <Button type="submit" className="w-full" size="lg" disabled={isSubmitting || loading}>
-              {isSubmitting || loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <LogIn className="mr-2 h-5 w-5" />}
+              {(isSubmitting || loading) ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <LogIn className="mr-2 h-5 w-5" />}
               Log In
             </Button>
           </form>

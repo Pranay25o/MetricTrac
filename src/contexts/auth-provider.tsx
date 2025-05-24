@@ -41,24 +41,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const userData = userDocSnap.data();
             // Special check for the main login page if a non-admin tries to use it
             if (pathname === '/' && userData.email !== ADMIN_EMAIL && firebaseUser.email !== ADMIN_EMAIL) {
-              toast({ title: "Access Denied", description: "This login is for admin users only.", variant: "destructive"});
-              await signOut(auth); // Sign out the non-admin user
+              // No toast here, rely on query param message on LoginPage
+              await signOut(auth); 
               setUser(null);
-              setLoading(false);
-              router.push('/'); // Keep them on the login page
-              return;
+              setLoading(false); 
+              router.push('/?auth_message=admin_only_logout', { scroll: false }); // Add query param
+              return; // IMPORTANT: return here to prevent further processing
             }
             setUser({ uid: firebaseUser.uid, ...userData } as UserProfile);
           } else {
             toast({ title: "Profile Error", description: "User profile not found. Logging out.", variant: "destructive"});
             await signOut(auth);
             setUser(null);
+            setLoading(false); // Ensure loading is set to false
           }
         } catch (error) {
           console.error("Error fetching user profile:", error);
           toast({ title: "Authentication Error", description: "Could not load user data. Logging out.", variant: "destructive"});
           await signOut(auth);
           setUser(null);
+          setLoading(false); // Ensure loading is set to false
         }
       } else {
         setUser(null);
@@ -68,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, router, toast]); // Added pathname, router, toast to dependency array
+  }, [pathname, router]); // Removed toast from deps as it's stable
 
   useEffect(() => {
     if (!loading) {
@@ -76,17 +78,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!user && !isAuthPage) {
         router.push('/');
       } else if (user && isAuthPage) {
-        // If user is already logged in and is on an auth page,
-        // but IS NOT the admin trying to access the main login page, redirect to dashboard.
-        // If it IS the admin on the main login page, let them be (they might have been redirected by the check above).
-        if (user.email === ADMIN_EMAIL && pathname === '/') {
-            router.push('/dashboard');
-        } else if (user.email !== ADMIN_EMAIL && isAuthPage) {
-             router.push('/dashboard');
-        } else if (!isAuthPage) {
-            // No specific action if on other pages already
-        } else {
-             router.push('/dashboard');
+        // If user is already logged in and is on an auth page (e.g. /signup),
+        // redirect to dashboard.
+        // The case for non-admin on '/' is handled by onAuthStateChanged.
+        if (pathname !== '/' || user.email === ADMIN_EMAIL) { // Allow admin to be on '/' briefly if needed
+          router.push('/dashboard');
         }
       }
     }
@@ -104,12 +100,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await signInWithEmailAndPassword(auth, email, pass);
       // onAuthStateChanged will handle setting user.
-      // The check within onAuthStateChanged will ensure redirection or logout if somehow a non-admin gets here via this flow.
       // Successful login will redirect to dashboard via the useEffect above.
     } catch (error: any) {
       console.error("Login error:", error);
       let errorMessage = "Invalid admin email or password.";
-      // More specific error messages can be helpful for the admin
       if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
         errorMessage = "Invalid admin credentials. Please check email and password.";
       } else if (error.code === 'auth/too-many-requests') {
@@ -124,13 +118,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signupUser = async (email: string, pass: string, name: string, role: Role, prn?: string) => {
     setLoading(true);
-    // Prevent non-admin signup if you want to restrict it further, e.g.
-    // if (role === 'admin' && email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
-    //   toast({ title: "Signup Error", description: "Admin role cannot be self-assigned.", variant: "destructive" });
-    //   setLoading(false);
-    //   return;
-    // }
-
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       const firebaseUser = userCredential.user;
@@ -139,7 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         name,
         email: firebaseUser.email!,
         role,
-        createdAt: serverTimestamp(), // Add a timestamp for when the user was created
+        createdAt: serverTimestamp(),
       };
       if (role === 'student' && prn) {
         userProfileData.prn = prn;
@@ -147,7 +134,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       await setDoc(doc(db, 'users', firebaseUser.uid), userProfileData);
       toast({ title: "Account Created", description: "Welcome! Redirecting to dashboard..."});
-      // onAuthStateChanged will handle setting user and the useEffect will redirect.
     } catch (error: any) {
       console.error("Signup error:", error);
       let errorMessage = "Could not create account.";
@@ -159,18 +145,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         errorMessage = error.message || "An unexpected error occurred during signup.";
       }
       toast({ title: "Signup Failed", description: errorMessage, variant: "destructive" });
-      setLoading(false);
+      setLoading(false); // Ensure loading is false on error
     }
+    // setLoading(false) is handled by onAuthStateChanged or error catch
   };
 
   const logout = async () => {
+    const wasUserLoggedIn = !!user; // Check if user was logged in before calling signOut
     setLoading(true);
-    const loggedOutUserEmail = user?.email; // Get email before clearing user
     try {
       await signOut(auth);
       setUser(null);
-      // Only show "logged out" toast if it wasn't an automatic logout (e.g. non-admin on login page)
-      if (loggedOutUserEmail) { // Check if user was actually set before logout
+      if (wasUserLoggedIn) { // Only show toast if a user was actually logged in and initiated logout
          toast({ title: "Logged Out", description: "You have been successfully logged out."});
       }
       router.push('/');
