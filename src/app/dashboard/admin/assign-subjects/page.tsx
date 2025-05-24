@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/auth-provider";
 import { getSemesters } from "@/lib/firestore/semesters";
@@ -31,8 +31,8 @@ export default function AssignSubjectsPage() {
   const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
   const [allSemesters, setAllSemesters] = useState<Semester[]>([]);
   
-  const [isLoading, setIsLoading] = useState(true); // For initial data load (teachers, subjects, semesters)
-  const [isLoadingAssignments, setIsLoadingAssignments] = useState(true); // For loading assignments list
+  const [isLoading, setIsLoading] = useState(true); 
+  const [isLoadingAssignments, setIsLoadingAssignments] = useState(true); 
 
   // Filters
   const [filterTeacher, setFilterTeacher] = useState<string>("");
@@ -90,6 +90,16 @@ export default function AssignSubjectsPage() {
   }, [toast]);
   
   const fetchAssignments = useCallback(async () => {
+    // IMPORTANT: For filtering to work correctly with Firestore, you might need to create
+    // composite indexes in your Firebase console for various combinations of
+    // (teacherUid, subjectId, semesterId) used with orderBy('teacherName'), orderBy('subjectName').
+    // Example indexes:
+    // - teacherAssignments: teacherUid ASC, teacherName ASC, subjectName ASC
+    // - teacherAssignments: subjectId ASC, teacherName ASC, subjectName ASC
+    // - teacherAssignments: semesterId ASC, teacherName ASC, subjectName ASC
+    // - teacherAssignments: teacherUid ASC, subjectId ASC, teacherName ASC, subjectName ASC
+    // - ... and other combinations if you use them.
+    // Firestore will provide a link in the console error if an index is missing.
     console.log("AssignSubjectsPage: fetchAssignments triggered with filters:", { filterTeacher, filterSubject, filterSemester });
     setIsLoadingAssignments(true);
     try {
@@ -100,10 +110,10 @@ export default function AssignSubjectsPage() {
       });
       setAssignments(fetchedAssignments);
       console.log("AssignSubjectsPage: Fetched assignments:", fetchedAssignments);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching assignments:", error);
-      toast({ title: "Error", description: "Could not load assignments.", variant: "destructive" });
-      setAssignments([]); // Clear assignments on error
+      toast({ title: "Error Fetching Assignments", description: error.message || "Could not load assignments. Check console for details (you might need to create Firestore indexes).", variant: "destructive" });
+      setAssignments([]); 
     } finally {
       setIsLoadingAssignments(false);
     }
@@ -119,7 +129,7 @@ export default function AssignSubjectsPage() {
     if (user && user.role === "admin") {
      fetchAssignments();
     }
-  }, [user, filterTeacher, filterSubject, filterSemester, fetchAssignments]); // fetchAssignments is stable due to useCallback
+  }, [user, filterTeacher, filterSubject, filterSemester, fetchAssignments]); 
 
   const handleAddAssignment = async () => {
     if (!newAssignmentTeacherUid || !newAssignmentSubjectId || !newAssignmentSemesterId) {
@@ -184,12 +194,7 @@ export default function AssignSubjectsPage() {
       return;
     }
     
-    const updatedAssignmentData: Partial<TeacherSubjectAssignment> = {
-      teacherUid: editAssignmentTeacherUid,
-      subjectId: editAssignmentSubjectId,
-      semesterId: editAssignmentSemesterId,
-    };
-    console.log("AssignSubjectsPage: Attempting to update assignment ID:", editingAssignment.id, "with data:", updatedAssignmentData);
+    console.log("AssignSubjectsPage: Attempting to update assignment ID:", editingAssignment.id);
     setIsUpdating(true);
 
     try {
@@ -247,7 +252,7 @@ export default function AssignSubjectsPage() {
   let noAssignmentsMessage = "No assignments found.";
   if (!isLoadingAssignments && !isLoading && assignments.length === 0) {
     if (filterTeacher || filterSubject || filterSemester) {
-      noAssignmentsMessage = "No assignments match your current filters. Try clearing them or adding new assignments.";
+      noAssignmentsMessage = "No assignments match your current filters. Try clearing them or check console for index errors if data should exist.";
     } else if (allTeachers.length === 0 || allSubjects.length === 0 || allSemesters.length === 0) {
       noAssignmentsMessage = "Cannot create assignments yet. Please ensure teachers, subjects, and semesters have been added to the system.";
     } else {
@@ -321,10 +326,16 @@ export default function AssignSubjectsPage() {
       </div>
 
       {/* Edit Assignment Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {
+        setIsEditDialogOpen(isOpen);
+        if (!isOpen) setEditingAssignment(null); // Clear editing state when dialog closes
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Edit Assignment</DialogTitle>
+            <DialogDescription>
+              Modify the teacher, subject, or semester for this assignment.
+            </DialogDescription>
           </DialogHeader>
           {editingAssignment && (
             <div className="grid gap-4 py-4">
@@ -370,7 +381,7 @@ export default function AssignSubjectsPage() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Current Assignments</CardTitle>
-          <CardDescription>List of subjects assigned to teachers for various semesters.</CardDescription>
+          <CardDescription>List of subjects assigned to teachers for various semesters. If filters don't work, check console for missing Firestore index errors.</CardDescription>
           <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             <div className="md:col-span-1">
               <Label htmlFor="teacherFilter" className="text-sm font-medium">Filter by Teacher</Label>
@@ -406,7 +417,7 @@ export default function AssignSubjectsPage() {
         </CardHeader>
         <CardContent>
           {isLoadingAssignments || isLoading ? (
-            <div className="flex justify-center items-center h-60"> {/* Increased height for loader visibility */}
+            <div className="flex justify-center items-center h-60"> 
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
                 <p className="ml-3 text-lg">Loading assignments...</p>
             </div>
@@ -461,4 +472,3 @@ export default function AssignSubjectsPage() {
     </div>
   );
 }
-
