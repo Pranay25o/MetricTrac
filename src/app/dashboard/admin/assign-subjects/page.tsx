@@ -17,7 +17,7 @@ import { addTeacherAssignment, getTeacherAssignments, deleteTeacherAssignment as
 import type { TeacherSubjectAssignment, UserProfile, Subject, Semester } from "@/lib/types";
 import { MoreHorizontal, PlusCircle, Edit2, Trash2, Filter, Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function AssignSubjectsPage() {
@@ -59,7 +59,7 @@ export default function AssignSubjectsPage() {
     }
   }, [searchParams]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
       const [teachers, subjects, semesters] = await Promise.all([
@@ -76,9 +76,9 @@ export default function AssignSubjectsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
   
-  const fetchAssignments = async () => {
+  const fetchAssignments = useCallback(async () => {
     setIsLoadingAssignments(true);
     try {
       const fetchedAssignments = await getTeacherAssignments({
@@ -93,22 +93,19 @@ export default function AssignSubjectsPage() {
     } finally {
       setIsLoadingAssignments(false);
     }
-  };
+  }, [toast, filterTeacher, filterSubject, filterSemester]);
 
   useEffect(() => {
     if (user && user.role === "admin") {
       fetchData();
     }
-  }, [user]);
+  }, [user, fetchData]);
   
   useEffect(() => {
     if (user && user.role === "admin") {
-     // Fetch assignments whenever filters change or initially.
-     // We don't strictly need all filters to be set.
      fetchAssignments();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, filterTeacher, filterSubject, filterSemester]);
+  }, [user, filterTeacher, filterSubject, filterSemester, fetchAssignments]);
 
   const handleAddAssignment = async () => {
     if (!newAssignmentTeacherUid || !newAssignmentSubjectId || !newAssignmentSemesterId) {
@@ -123,6 +120,7 @@ export default function AssignSubjectsPage() {
 
       if (!teacher || !subject || !semester) {
         toast({ title: "Error", description: "Selected teacher, subject or semester not found.", variant: "destructive" });
+        setIsSubmitting(false); // Ensure button is re-enabled
         return;
       }
 
@@ -184,35 +182,38 @@ export default function AssignSubjectsPage() {
             <div className="grid gap-4 py-4">
               <div>
                 <Label htmlFor="newAssignTeacher">Teacher</Label>
-                <Select value={newAssignmentTeacherUid} onValueChange={setNewAssignmentTeacherUid}>
+                <Select value={newAssignmentTeacherUid} onValueChange={setNewAssignmentTeacherUid} disabled={allTeachers.length === 0}>
                   <SelectTrigger id="newAssignTeacher"><SelectValue placeholder="Select Teacher" /></SelectTrigger>
                   <SelectContent>
                     {allTeachers.map(t => <SelectItem key={t.uid} value={t.uid}>{t.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                 {allTeachers.length === 0 && !isLoading && <p className="text-xs text-muted-foreground mt-1">No teachers available. Please add teachers first.</p>}
               </div>
               <div>
                 <Label htmlFor="newAssignSubject">Subject</Label>
-                <Select value={newAssignmentSubjectId} onValueChange={setNewAssignmentSubjectId}>
+                <Select value={newAssignmentSubjectId} onValueChange={setNewAssignmentSubjectId} disabled={allSubjects.length === 0}>
                   <SelectTrigger id="newAssignSubject"><SelectValue placeholder="Select Subject" /></SelectTrigger>
                   <SelectContent>
                     {allSubjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name} ({s.code})</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {allSubjects.length === 0 && !isLoading && <p className="text-xs text-muted-foreground mt-1">No subjects available. Please add subjects first.</p>}
               </div>
               <div>
                 <Label htmlFor="newAssignSemester">Semester</Label>
-                <Select value={newAssignmentSemesterId} onValueChange={setNewAssignmentSemesterId}>
+                <Select value={newAssignmentSemesterId} onValueChange={setNewAssignmentSemesterId} disabled={allSemesters.length === 0}>
                   <SelectTrigger id="newAssignSemester"><SelectValue placeholder="Select Semester" /></SelectTrigger>
                   <SelectContent>
                     {allSemesters.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {allSemesters.length === 0 && !isLoading && <p className="text-xs text-muted-foreground mt-1">No semesters available. Please add semesters first.</p>}
               </div>
             </div>
             <DialogFooter>
               <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-              <Button onClick={handleAddAssignment} disabled={isSubmitting || isLoading}>
+              <Button onClick={handleAddAssignment} disabled={isSubmitting || isLoading || allTeachers.length === 0 || allSubjects.length === 0 || allSemesters.length === 0}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Create Assignment
               </Button>
@@ -228,7 +229,7 @@ export default function AssignSubjectsPage() {
           <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             <div className="md:col-span-1">
               <Label htmlFor="teacherFilter" className="text-sm font-medium">Filter by Teacher</Label>
-              <Select value={filterTeacher} onValueChange={setFilterTeacher} disabled={isLoading}>
+              <Select value={filterTeacher} onValueChange={setFilterTeacher} disabled={isLoading || allTeachers.length === 0}>
                 <SelectTrigger id="teacherFilter"><SelectValue placeholder="All Teachers" /></SelectTrigger>
                 <SelectContent>
                   {allTeachers.map(teacher => <SelectItem key={teacher.uid} value={teacher.uid}>{teacher.name}</SelectItem>)}
@@ -237,7 +238,7 @@ export default function AssignSubjectsPage() {
             </div>
             <div className="md:col-span-1">
              <Label htmlFor="subjectFilter" className="text-sm font-medium">Filter by Subject</Label>
-              <Select value={filterSubject} onValueChange={setFilterSubject} disabled={isLoading}>
+              <Select value={filterSubject} onValueChange={setFilterSubject} disabled={isLoading || allSubjects.length === 0}>
                 <SelectTrigger id="subjectFilter"><SelectValue placeholder="All Subjects" /></SelectTrigger>
                 <SelectContent>
                   {allSubjects.map(subject => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}
@@ -246,7 +247,7 @@ export default function AssignSubjectsPage() {
             </div>
             <div className="md:col-span-1">
             <Label htmlFor="semesterFilter" className="text-sm font-medium">Filter by Semester</Label>
-              <Select value={filterSemester} onValueChange={setFilterSemester} disabled={isLoading}>
+              <Select value={filterSemester} onValueChange={setFilterSemester} disabled={isLoading || allSemesters.length === 0}>
                 <SelectTrigger id="semesterFilter"><SelectValue placeholder="All Semesters" /></SelectTrigger>
                 <SelectContent>
                   {allSemesters.map(semester =><SelectItem key={semester.id} value={semester.id}>{semester.name}</SelectItem>)}
@@ -303,7 +304,7 @@ export default function AssignSubjectsPage() {
               )) : (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center h-24">
-                    No assignments found. {assignments.length === 0 && !filterTeacher && !filterSubject && !filterSemester ? "Try adding an assignment or clear filters." : ""}
+                    No assignments found. {assignments.length === 0 && !filterTeacher && !filterSubject && !filterSemester && (allTeachers.length === 0 || allSubjects.length === 0 || allSemesters.length === 0) ? "Please ensure teachers, subjects, and semesters are added before creating assignments." : assignments.length === 0 && !filterTeacher && !filterSubject && !filterSemester ? "Try adding an assignment." : "Try clearing filters or adding an assignment."}
                   </TableCell>
                 </TableRow>
               )}

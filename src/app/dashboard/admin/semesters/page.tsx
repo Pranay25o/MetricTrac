@@ -14,7 +14,7 @@ import { addSemester, getSemesters, deleteSemester as deleteSemesterFromDb } fro
 import type { Semester } from "@/lib/types";
 import { MoreHorizontal, PlusCircle, Search, Edit2, Trash2, CalendarDays, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { format, parseISO } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
 
@@ -41,7 +41,7 @@ export default function ManageSemestersPage() {
     }
   }, [user, authLoading, router]);
 
-  const fetchSemesters = async () => {
+  const fetchSemesters = useCallback(async () => {
     setIsLoading(true);
     try {
       const fetchedSemesters = await getSemesters();
@@ -52,13 +52,13 @@ export default function ManageSemestersPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     if (user && user.role === "admin") {
       fetchSemesters();
     }
-  }, [user]);
+  }, [user, fetchSemesters]);
 
 
   const handleAddSemester = async () => {
@@ -234,7 +234,7 @@ export default function ManageSemestersPage() {
               )) : (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center h-24">
-                    No semesters found. {semesters.length === 0 && !searchTerm ? "Try adding a new semester." : ""}
+                    No semesters found. {semesters.length === 0 && !searchTerm ? "Try adding a new semester." : "Clear search or add a semester."}
                   </TableCell>
                 </TableRow>
               )}

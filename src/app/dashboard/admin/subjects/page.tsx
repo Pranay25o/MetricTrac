@@ -14,7 +14,7 @@ import { addSubject, getSubjects, deleteSubject as deleteSubjectFromDb } from "@
 import type { Subject } from "@/lib/types";
 import { MoreHorizontal, PlusCircle, Search, Edit2, Trash2, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function ManageSubjectsPage() {
@@ -37,7 +37,7 @@ export default function ManageSubjectsPage() {
     }
   }, [user, authLoading, router]);
 
-  const fetchSubjects = async () => {
+  const fetchSubjects = useCallback(async () => {
     setIsLoading(true);
     try {
       const fetchedSubjects = await getSubjects();
@@ -48,13 +48,13 @@ export default function ManageSubjectsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     if (user && user.role === "admin") {
       fetchSubjects();
     }
-  }, [user]);
+  }, [user, fetchSubjects]);
 
   const handleAddSubject = async () => {
     if (!newSubjectName || !newSubjectCode) {
@@ -193,7 +193,7 @@ export default function ManageSubjectsPage() {
               )) : (
                 <TableRow>
                   <TableCell colSpan={3} className="text-center h-24">
-                    No subjects found. {subjects.length === 0 && !searchTerm ? "Try adding a new subject." : ""}
+                    No subjects found. {subjects.length === 0 && !searchTerm ? "Try adding a new subject." : "Clear search or add a subject."}
                   </TableCell>
                 </TableRow>
               )}

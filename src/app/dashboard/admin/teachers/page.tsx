@@ -14,7 +14,7 @@ import type { UserProfile } from "@/lib/types";
 import { MoreHorizontal, PlusCircle, Search, FileDown, Edit2, Trash2, Eye, BookOpen, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
@@ -34,7 +34,7 @@ export default function ManageTeachersPage() {
     }
   }, [user, authLoading, router]);
 
-  const fetchTeachersAndCounts = async () => {
+  const fetchTeachersAndCounts = useCallback(async () => {
     setIsLoading(true);
     try {
       const fetchedTeachers = await getUsers("teacher");
@@ -53,13 +53,13 @@ export default function ManageTeachersPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     if (user && user.role === 'admin') {
       fetchTeachersAndCounts();
     }
-  }, [user]);
+  }, [user, fetchTeachersAndCounts]);
 
   if (authLoading || !user || user.role !== "admin") {
      return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /><p className="ml-2">Loading or unauthorized...</p></div>;
@@ -170,7 +170,7 @@ export default function ManageTeachersPage() {
               )) : (
                  <TableRow>
                   <TableCell colSpan={5} className="text-center h-24">
-                    No teachers found. {teachers.length === 0 && !searchTerm ? "No teachers registered yet." : ""}
+                    No teachers found. {teachers.length === 0 && !searchTerm ? "No teachers registered yet. Please add teachers to the system." : "Clear search or add teachers."}
                   </TableCell>
                 </TableRow>
               )}

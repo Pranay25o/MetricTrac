@@ -13,7 +13,7 @@ import type { UserProfile } from "@/lib/types";
 import { MoreHorizontal, PlusCircle, Search, FileDown, Edit2, Trash2, Eye, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function ManageStudentsPage() {
@@ -31,7 +31,7 @@ export default function ManageStudentsPage() {
     }
   }, [user, authLoading, router]);
 
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
     setIsLoading(true);
     try {
       const fetchedStudents = await getUsers("student");
@@ -42,13 +42,13 @@ export default function ManageStudentsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
   
   useEffect(() => {
     if (user && user.role === 'admin') {
       fetchStudents();
     }
-  }, [user]);
+  }, [user, fetchStudents]);
 
 
   if (authLoading || !user || user.role !== "admin") {
@@ -156,7 +156,7 @@ export default function ManageStudentsPage() {
               )) : (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center h-24">
-                    No students found. {students.length === 0 && !searchTerm ? "No students registered yet." : ""}
+                    No students found. {students.length === 0 && !searchTerm ? "No students registered yet. Please add students to the system." : "Clear search or add students."}
                   </TableCell>
                 </TableRow>
               )}
