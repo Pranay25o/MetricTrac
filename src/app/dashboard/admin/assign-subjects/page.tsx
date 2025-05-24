@@ -31,8 +31,8 @@ export default function AssignSubjectsPage() {
   const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
   const [allSemesters, setAllSemesters] = useState<Semester[]>([]);
   
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingAssignments, setIsLoadingAssignments] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // For initial data load (teachers, subjects, semesters)
+  const [isLoadingAssignments, setIsLoadingAssignments] = useState(true); // For loading assignments list
 
   // Filters
   const [filterTeacher, setFilterTeacher] = useState<string>("");
@@ -69,6 +69,7 @@ export default function AssignSubjectsPage() {
   }, [searchParams]);
 
   const fetchData = useCallback(async () => {
+    console.log("AssignSubjectsPage: fetchData triggered");
     setIsLoading(true);
     try {
       const [teachers, subjects, semesters] = await Promise.all([
@@ -79,6 +80,7 @@ export default function AssignSubjectsPage() {
       setAllTeachers(teachers);
       setAllSubjects(subjects);
       setAllSemesters(semesters);
+      console.log("AssignSubjectsPage: Fetched prerequisite data:", { teachersCount: teachers.length, subjectsCount: subjects.length, semestersCount: semesters.length });
     } catch (error) {
       console.error("Error fetching prerequisite data:", error);
       toast({ title: "Error", description: "Could not load teachers, subjects, or semesters.", variant: "destructive" });
@@ -88,6 +90,7 @@ export default function AssignSubjectsPage() {
   }, [toast]);
   
   const fetchAssignments = useCallback(async () => {
+    console.log("AssignSubjectsPage: fetchAssignments triggered with filters:", { filterTeacher, filterSubject, filterSemester });
     setIsLoadingAssignments(true);
     try {
       const fetchedAssignments = await getTeacherAssignments({
@@ -96,9 +99,11 @@ export default function AssignSubjectsPage() {
         semesterId: filterSemester || undefined,
       });
       setAssignments(fetchedAssignments);
+      console.log("AssignSubjectsPage: Fetched assignments:", fetchedAssignments);
     } catch (error) {
       console.error("Error fetching assignments:", error);
       toast({ title: "Error", description: "Could not load assignments.", variant: "destructive" });
+      setAssignments([]); // Clear assignments on error
     } finally {
       setIsLoadingAssignments(false);
     }
@@ -114,14 +119,22 @@ export default function AssignSubjectsPage() {
     if (user && user.role === "admin") {
      fetchAssignments();
     }
-  }, [user, filterTeacher, filterSubject, filterSemester, fetchAssignments]);
+  }, [user, filterTeacher, filterSubject, filterSemester, fetchAssignments]); // fetchAssignments is stable due to useCallback
 
   const handleAddAssignment = async () => {
     if (!newAssignmentTeacherUid || !newAssignmentSubjectId || !newAssignmentSemesterId) {
       toast({ title: "Validation Error", description: "Please select a teacher, subject, and semester.", variant: "destructive" });
       return;
     }
+    
+    const assignmentPayload = {
+      teacherUid: newAssignmentTeacherUid,
+      subjectId: newAssignmentSubjectId,
+      semesterId: newAssignmentSemesterId,
+    };
+    console.log("AssignSubjectsPage: Attempting to add assignment with payload:", assignmentPayload);
     setIsSubmitting(true);
+
     try {
       const teacher = allTeachers.find(t => t.uid === newAssignmentTeacherUid);
       const subject = allSubjects.find(s => s.id === newAssignmentSubjectId);
@@ -133,7 +146,7 @@ export default function AssignSubjectsPage() {
         return;
       }
 
-      await addTeacherAssignment({ 
+      const newAssignmentId = await addTeacherAssignment({ 
         teacherUid: newAssignmentTeacherUid,
         teacherName: teacher.name,
         subjectId: newAssignmentSubjectId,
@@ -141,6 +154,7 @@ export default function AssignSubjectsPage() {
         semesterId: newAssignmentSemesterId,
         semesterName: semester.name
       });
+      console.log("AssignSubjectsPage: Successfully added assignment, new ID:", newAssignmentId);
       toast({ title: "Success", description: "Assignment added successfully." });
       setNewAssignmentTeacherUid("");
       setNewAssignmentSubjectId("");
@@ -149,13 +163,14 @@ export default function AssignSubjectsPage() {
       fetchAssignments(); 
     } catch (error) {
       console.error("Error adding assignment:", error);
-      toast({ title: "Error", description: "Could not add assignment. It might already exist.", variant: "destructive" });
+      toast({ title: "Error", description: "Could not add assignment. It might already exist or there was a server error.", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const openEditDialog = (assignment: TeacherSubjectAssignment) => {
+    console.log("AssignSubjectsPage: Opening edit dialog for assignment:", assignment);
     setEditingAssignment(assignment);
     setEditAssignmentTeacherUid(assignment.teacherUid);
     setEditAssignmentSubjectId(assignment.subjectId);
@@ -168,7 +183,15 @@ export default function AssignSubjectsPage() {
       toast({ title: "Validation Error", description: "Please select a teacher, subject, and semester for the update.", variant: "destructive" });
       return;
     }
+    
+    const updatedAssignmentData: Partial<TeacherSubjectAssignment> = {
+      teacherUid: editAssignmentTeacherUid,
+      subjectId: editAssignmentSubjectId,
+      semesterId: editAssignmentSemesterId,
+    };
+    console.log("AssignSubjectsPage: Attempting to update assignment ID:", editingAssignment.id, "with data:", updatedAssignmentData);
     setIsUpdating(true);
+
     try {
       const teacher = allTeachers.find(t => t.uid === editAssignmentTeacherUid);
       const subject = allSubjects.find(s => s.id === editAssignmentSubjectId);
@@ -180,7 +203,7 @@ export default function AssignSubjectsPage() {
         return;
       }
       
-      const updatedAssignmentData: Partial<TeacherSubjectAssignment> = {
+      const fullUpdatePayload: Partial<TeacherSubjectAssignment> = {
         teacherUid: editAssignmentTeacherUid,
         teacherName: teacher.name,
         subjectId: editAssignmentSubjectId,
@@ -189,7 +212,8 @@ export default function AssignSubjectsPage() {
         semesterName: semester.name,
       };
 
-      await updateTeacherAssignment(editingAssignment.id, updatedAssignmentData);
+      await updateTeacherAssignment(editingAssignment.id, fullUpdatePayload);
+      console.log("AssignSubjectsPage: Successfully updated assignment:", editingAssignment.id);
       toast({ title: "Success", description: "Assignment updated successfully." });
       setIsEditDialogOpen(false);
       setEditingAssignment(null);
@@ -204,9 +228,14 @@ export default function AssignSubjectsPage() {
 
 
   const handleDeleteAssignment = async (assignmentId: string) => {
-    if (!window.confirm("Are you sure you want to delete this assignment?")) return;
+    console.log("AssignSubjectsPage: Attempting to delete assignment:", assignmentId);
+    if (!window.confirm("Are you sure you want to delete this assignment?")) {
+        console.log("AssignSubjectsPage: Deletion cancelled by user for assignment:", assignmentId);
+        return;
+    }
     try {
       await deleteAssignmentFromDb(assignmentId);
+      console.log("AssignSubjectsPage: Successfully deleted assignment:", assignmentId);
       toast({ title: "Success", description: "Assignment deleted successfully." });
       fetchAssignments(); 
     } catch (error) {
@@ -214,6 +243,18 @@ export default function AssignSubjectsPage() {
       toast({ title: "Error", description: "Could not delete assignment.", variant: "destructive" });
     }
   };
+
+  let noAssignmentsMessage = "No assignments found.";
+  if (!isLoadingAssignments && !isLoading && assignments.length === 0) {
+    if (filterTeacher || filterSubject || filterSemester) {
+      noAssignmentsMessage = "No assignments match your current filters. Try clearing them or adding new assignments.";
+    } else if (allTeachers.length === 0 || allSubjects.length === 0 || allSemesters.length === 0) {
+      noAssignmentsMessage = "Cannot create assignments yet. Please ensure teachers, subjects, and semesters have been added to the system.";
+    } else {
+      noAssignmentsMessage = "No assignments have been created yet. Try adding a new assignment using the button above.";
+    }
+  }
+
 
   if (authLoading || !user || user.role !== "admin") {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /><p className="ml-2">Loading or unauthorized...</p></div>;
@@ -239,7 +280,7 @@ export default function AssignSubjectsPage() {
             <div className="grid gap-4 py-4">
               <div>
                 <Label htmlFor="newAssignTeacher">Teacher</Label>
-                <Select value={newAssignmentTeacherUid} onValueChange={setNewAssignmentTeacherUid} disabled={allTeachers.length === 0}>
+                <Select value={newAssignmentTeacherUid} onValueChange={setNewAssignmentTeacherUid} disabled={allTeachers.length === 0 || isLoading}>
                   <SelectTrigger id="newAssignTeacher"><SelectValue placeholder="Select Teacher" /></SelectTrigger>
                   <SelectContent>
                     {allTeachers.map(t => <SelectItem key={t.uid} value={t.uid}>{t.name}</SelectItem>)}
@@ -249,7 +290,7 @@ export default function AssignSubjectsPage() {
               </div>
               <div>
                 <Label htmlFor="newAssignSubject">Subject</Label>
-                <Select value={newAssignmentSubjectId} onValueChange={setNewAssignmentSubjectId} disabled={allSubjects.length === 0}>
+                <Select value={newAssignmentSubjectId} onValueChange={setNewAssignmentSubjectId} disabled={allSubjects.length === 0 || isLoading}>
                   <SelectTrigger id="newAssignSubject"><SelectValue placeholder="Select Subject" /></SelectTrigger>
                   <SelectContent>
                     {allSubjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name} ({s.code})</SelectItem>)}
@@ -259,7 +300,7 @@ export default function AssignSubjectsPage() {
               </div>
               <div>
                 <Label htmlFor="newAssignSemester">Semester</Label>
-                <Select value={newAssignmentSemesterId} onValueChange={setNewAssignmentSemesterId} disabled={allSemesters.length === 0}>
+                <Select value={newAssignmentSemesterId} onValueChange={setNewAssignmentSemesterId} disabled={allSemesters.length === 0 || isLoading}>
                   <SelectTrigger id="newAssignSemester"><SelectValue placeholder="Select Semester" /></SelectTrigger>
                   <SelectContent>
                     {allSemesters.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
@@ -289,7 +330,7 @@ export default function AssignSubjectsPage() {
             <div className="grid gap-4 py-4">
               <div>
                 <Label htmlFor="editAssignTeacher">Teacher</Label>
-                <Select value={editAssignmentTeacherUid} onValueChange={setEditAssignmentTeacherUid} disabled={allTeachers.length === 0}>
+                <Select value={editAssignmentTeacherUid} onValueChange={setEditAssignmentTeacherUid} disabled={allTeachers.length === 0 || isLoading}>
                   <SelectTrigger id="editAssignTeacher"><SelectValue placeholder="Select Teacher" /></SelectTrigger>
                   <SelectContent>
                     {allTeachers.map(t => <SelectItem key={t.uid} value={t.uid}>{t.name}</SelectItem>)}
@@ -298,7 +339,7 @@ export default function AssignSubjectsPage() {
               </div>
               <div>
                 <Label htmlFor="editAssignSubject">Subject</Label>
-                <Select value={editAssignmentSubjectId} onValueChange={setEditAssignmentSubjectId} disabled={allSubjects.length === 0}>
+                <Select value={editAssignmentSubjectId} onValueChange={setEditAssignmentSubjectId} disabled={allSubjects.length === 0 || isLoading}>
                   <SelectTrigger id="editAssignSubject"><SelectValue placeholder="Select Subject" /></SelectTrigger>
                   <SelectContent>
                     {allSubjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name} ({s.code})</SelectItem>)}
@@ -307,7 +348,7 @@ export default function AssignSubjectsPage() {
               </div>
               <div>
                 <Label htmlFor="editAssignSemester">Semester</Label>
-                <Select value={editAssignmentSemesterId} onValueChange={setEditAssignmentSemesterId} disabled={allSemesters.length === 0}>
+                <Select value={editAssignmentSemesterId} onValueChange={setEditAssignmentSemesterId} disabled={allSemesters.length === 0 || isLoading}>
                   <SelectTrigger id="editAssignSemester"><SelectValue placeholder="Select Semester" /></SelectTrigger>
                   <SelectContent>
                     {allSemesters.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
@@ -365,9 +406,9 @@ export default function AssignSubjectsPage() {
         </CardHeader>
         <CardContent>
           {isLoadingAssignments || isLoading ? (
-            <div className="flex justify-center items-center h-24">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="ml-2">Loading assignments...</p>
+            <div className="flex justify-center items-center h-60"> {/* Increased height for loader visibility */}
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <p className="ml-3 text-lg">Loading assignments...</p>
             </div>
           ) : (
           <Table>
@@ -396,10 +437,10 @@ export default function AssignSubjectsPage() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuItem onClick={() => openEditDialog(assignment)}>
-                          <Edit2 className="mr-2 h-4 w-4" /> Edit Assignment
+                          <Edit2 className="mr-2 h-4 w-4" /> Edit
                         </DropdownMenuItem>
                         <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => handleDeleteAssignment(assignment.id)}>
-                          <Trash2 className="mr-2 h-4 w-4" /> Delete Assignment
+                          <Trash2 className="mr-2 h-4 w-4" /> Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -408,7 +449,7 @@ export default function AssignSubjectsPage() {
               )) : (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center h-24">
-                    No assignments found. {assignments.length === 0 && !filterTeacher && !filterSubject && !filterSemester && (allTeachers.length === 0 || allSubjects.length === 0 || allSemesters.length === 0) ? "Please ensure teachers, subjects, and semesters are added before creating assignments." : assignments.length === 0 && !filterTeacher && !filterSubject && !filterSemester ? "Try adding an assignment." : "Try clearing filters or adding an assignment."}
+                    {noAssignmentsMessage}
                   </TableCell>
                 </TableRow>
               )}
@@ -420,3 +461,4 @@ export default function AssignSubjectsPage() {
     </div>
   );
 }
+

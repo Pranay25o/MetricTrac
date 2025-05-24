@@ -13,6 +13,7 @@ export async function addTeacherAssignment(assignmentData: Omit<TeacherSubjectAs
     ...assignmentData,
     createdAt: serverTimestamp(),
   });
+  console.log("Assignment added in Firestore with ID:", docRef.id);
   return docRef.id;
 }
 
@@ -48,9 +49,12 @@ export async function updateTeacherAssignment(id: string, updates: Partial<Teach
     ...updates,
     updatedAt: serverTimestamp(),
   });
+  console.log("Assignment updated in Firestore, ID:", id);
 }
 
 export async function deleteTeacherAssignment(id: string): Promise<void> {
   const assignmentDoc = doc(db, 'teacherAssignments', id);
   await deleteDoc(assignmentDoc);
+  console.log("Assignment deleted from Firestore, ID:", id);
 }
+
