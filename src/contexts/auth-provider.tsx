@@ -1,3 +1,4 @@
+
 // src/contexts/auth-provider.tsx
 "use client";
 
@@ -5,71 +6,125 @@ import type { UserProfile, Role } from '@/lib/types';
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { onAuthStateChanged, signOut, type User as FirebaseUser, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { auth, db } from '@/lib/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
 
 interface AuthContextType {
   user: UserProfile | null;
   loading: boolean;
-  login: (role: Role) => void;
+  loginUser: (email: string, pass: string) => Promise<void>;
+  signupUser: (email: string, pass: string, name: string, role: Role, prn?: string) => Promise<void>;
   logout: () => void;
   role: Role | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock user data
-const mockUsers: Record<Role, UserProfile> = {
-  admin: { id: 'admin001', email: 'admin@merittrac.com', name: 'Admin User', role: 'admin', avatarUrl: 'https://placehold.co/100x100.png' },
-  teacher: { id: 'teacher001', email: 'teacher@merittrac.com', name: 'Teacher User', role: 'teacher', avatarUrl: 'https://placehold.co/100x100.png' },
-  student: { id: 'student001', email: 'student@merittrac.com', name: 'Student User', role: 'student', prn: 'S12345', avatarUrl: 'https://placehold.co/100x100.png' },
-};
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
+  const { toast } = useToast();
 
   useEffect(() => {
-    // Simulate checking auth status on load
-    const storedRole = typeof window !== "undefined" ? localStorage.getItem('mockUserRole') as Role : null;
-    if (storedRole && mockUsers[storedRole]) {
-      setUser(mockUsers[storedRole]);
-    }
-    setLoading(false);
-  }, []);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+      if (firebaseUser) {
+        try {
+          const userDocRef = doc(db, 'users', firebaseUser.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          if (userDocSnap.exists()) {
+            setUser({ uid: firebaseUser.uid, ...userDocSnap.data() } as UserProfile);
+          } else {
+            // This case might happen if user exists in Auth but not Firestore.
+            // Potentially log them out or prompt to complete profile.
+            toast({ title: "Profile Error", description: "User profile not found. Please contact support.", variant: "destructive"});
+            await signOut(auth);
+            setUser(null);
+          }
+        } catch (error) {
+          console.error("Error fetching user profile:", error);
+          toast({ title: "Authentication Error", description: "Could not load user data.", variant: "destructive"});
+          setUser(null);
+        }
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [toast]);
 
   useEffect(() => {
     if (!loading) {
-      if (!user && pathname !== '/') {
+      const isAuthPage = pathname === '/' || pathname === '/signup';
+      if (!user && !isAuthPage) {
         router.push('/');
-      } else if (user && pathname === '/') {
+      } else if (user && isAuthPage) {
         router.push('/dashboard');
       }
     }
   }, [user, loading, pathname, router]);
 
-
-  const login = (role: Role) => {
+  const loginUser = async (email: string, pass: string) => {
     setLoading(true);
-    const mockUser = mockUsers[role];
-    if (mockUser) {
-      setUser(mockUser);
-      if (typeof window !== "undefined") localStorage.setItem('mockUserRole', role);
-      router.push('/dashboard');
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+      // onAuthStateChanged will handle setting user and redirecting
+    } catch (error: any) {
+      console.error("Login error:", error);
+      toast({ title: "Login Failed", description: error.message || "Invalid email or password.", variant: "destructive" });
+      setLoading(false); // Ensure loading is false on error
+    }
+    // setLoading(false) is handled by onAuthStateChanged or error case
+  };
+
+  const signupUser = async (email: string, pass: string, name: string, role: Role, prn?: string) => {
+    setLoading(true);
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+      const firebaseUser = userCredential.user;
+      
+      const userProfileData: Omit<UserProfile, 'uid' | 'avatarUrl'> & { email: string } = {
+        name,
+        email: firebaseUser.email!, // Firebase provides email
+        role,
+      };
+      if (role === 'student' && prn) {
+        userProfileData.prn = prn;
+      }
+      // Add avatarUrl later if needed, e.g. default placeholder
+      // userProfileData.avatarUrl = 'https://placehold.co/100x100.png';
+
+      await setDoc(doc(db, 'users', firebaseUser.uid), userProfileData);
+      // onAuthStateChanged will handle setting user and redirecting
+       toast({ title: "Account Created", description: "Welcome! You are now being redirected."});
+    } catch (error: any) {
+      console.error("Signup error:", error);
+      toast({ title: "Signup Failed", description: error.message || "Could not create account.", variant: "destructive" });
+      setLoading(false);
+    }
+     // setLoading(false) is handled by onAuthStateChanged or error case
+  };
+
+  const logout = async () => {
+    setLoading(true);
+    try {
+      await signOut(auth);
+      setUser(null);
+      router.push('/');
+    } catch (error) {
+      console.error("Logout error:", error);
+      toast({ title: "Logout Failed", description: "Could not log out. Please try again.", variant: "destructive" });
     }
     setLoading(false);
   };
-
-  const logout = () => {
-    setLoading(true);
-    setUser(null);
-    if (typeof window !== "undefined") localStorage.removeItem('mockUserRole');
-    router.push('/');
-    setLoading(false);
-  };
-
+  
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, role: user?.role ?? null }}>
+    <AuthContext.Provider value={{ user, loading, loginUser, signupUser, logout, role: user?.role ?? null }}>
       {children}
     </AuthContext.Provider>
   );

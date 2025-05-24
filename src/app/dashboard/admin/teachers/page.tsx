@@ -1,3 +1,4 @@
+
 // src/app/dashboard/admin/teachers/page.tsx
 "use client";
 
@@ -7,7 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/contexts/auth-provider";
-import { mockTeachers, mockTeacherAssignments } from "@/lib/mock-data";
+import { mockTeachers, mockTeacherAssignments } from "@/lib/mock-data"; // Will be replaced
 import type { UserProfile } from "@/lib/types";
 import { MoreHorizontal, PlusCircle, Search, FileDown, Edit2, Trash2, Eye, BookOpen } from "lucide-react";
 import Image from "next/image";
@@ -15,28 +16,45 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 
+// TODO: Replace mockTeachers with actual data fetching from Firestore
+// import { collection, getDocs, query, where } from "firebase/firestore";
+// import { db } from "@/lib/firebase";
+
 export default function ManageTeachersPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
+  const [teachers, setTeachers] = useState<UserProfile[]>(mockTeachers); // Initially use mock
 
   useEffect(() => {
     if (!loading && (!user || user.role !== "admin")) {
       router.push("/dashboard");
     }
+    // TODO: Fetch actual teacher data from Firestore
+    // const fetchTeachers = async () => {
+    //   if (user && user.role === 'admin') {
+    //     const q = query(collection(db, "users"), where("role", "==", "teacher"));
+    //     const querySnapshot = await getDocs(q);
+    //     const teacherList = querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
+    //     setTeachers(teacherList);
+    //   }
+    // };
+    // fetchTeachers();
   }, [user, loading, router]);
 
   if (loading || !user || user.role !== "admin") {
     return <p>Loading or unauthorized...</p>;
   }
   
-  const filteredTeachers = mockTeachers.filter(teacher => 
+  const filteredTeachers = teachers.filter(teacher => 
     teacher.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     teacher.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const getAssignedSubjectsCount = (teacherId: string) => {
-    return mockTeacherAssignments.filter(assignment => assignment.teacherId === teacherId).length;
+  const getAssignedSubjectsCount = (teacherUid: string) => {
+    // TODO: This will need to query Firestore or use a more efficient data structure
+    // For now, it uses mock data.
+    return mockTeacherAssignments.filter(assignment => assignment.teacherUid === teacherUid).length;
   };
 
 
@@ -84,7 +102,7 @@ export default function ManageTeachersPage() {
             </TableHeader>
             <TableBody>
               {filteredTeachers.length > 0 ? filteredTeachers.map((teacher: UserProfile) => (
-                <TableRow key={teacher.id}>
+                <TableRow key={teacher.uid}>
                   <TableCell>
                     <Image 
                       src={teacher.avatarUrl || "https://placehold.co/40x40.png"} 
@@ -98,7 +116,7 @@ export default function ManageTeachersPage() {
                   <TableCell className="font-medium">{teacher.name}</TableCell>
                   <TableCell>{teacher.email}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary">{getAssignedSubjectsCount(teacher.id)}</Badge>
+                    <Badge variant="secondary">{getAssignedSubjectsCount(teacher.uid)}</Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>

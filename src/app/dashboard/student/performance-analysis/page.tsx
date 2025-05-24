@@ -1,3 +1,4 @@
+
 // src/app/dashboard/student/performance-analysis/page.tsx
 "use client";
 
@@ -7,11 +8,12 @@ import { useAuth } from "@/contexts/auth-provider";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { analyzeStudentPerformance, type AnalyzeStudentPerformanceInput, type AnalyzeStudentPerformanceOutput } from "@/ai/flows/analyze-student-performance";
-import { mockMarks, mockSemesters, mockSubjects } from "@/lib/mock-data";
+import { mockMarks, mockSemesters, mockSubjects } from "@/lib/mock-data"; // Will be replaced
 import type { StudentMarksDataForAI } from "@/lib/types";
 import { Loader2, Brain, Sparkles } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
+// TODO: Replace mock data with Firestore data fetching
 export default function PerformanceAnalysisPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -35,18 +37,19 @@ export default function PerformanceAnalysisPage() {
 
     try {
       // Prepare marks data for AI
-      const studentMarksData: StudentMarksDataForAI[] = mockMarks
-        .filter(mark => mark.studentId === user.id)
+      // TODO: Fetch marks for the logged-in student from Firestore
+      const studentMarksDataForAI: StudentMarksDataForAI[] = mockMarks // Replace mockMarks
+        .filter(mark => mark.studentUid === user.uid) // Changed to studentUid
         .map(mark => ({
-          semester: mockSemesters.find(s => s.id === mark.semesterId)?.name || 'Unknown Semester',
-          subject: mockSubjects.find(s => s.id === mark.subjectId)?.name || 'Unknown Subject',
+          semester: mockSemesters.find(s => s.id === mark.semesterId)?.name || 'Unknown Semester', // TODO: Use semesters from Firestore
+          subject: mockSubjects.find(s => s.id === mark.subjectId)?.name || 'Unknown Subject', // TODO: Use subjects from Firestore
           ca1: mark.ca1 ?? 0,
           ca2: mark.ca2 ?? 0,
           midTerm: mark.midTerm ?? 0,
           endTerm: mark.endTerm ?? 0,
         }));
 
-      if (studentMarksData.length === 0) {
+      if (studentMarksDataForAI.length === 0) {
         setError("No marks data found to analyze. Please ensure your marks are updated.");
         setIsLoadingAnalysis(false);
         return;
@@ -54,8 +57,8 @@ export default function PerformanceAnalysisPage() {
 
       const input: AnalyzeStudentPerformanceInput = {
         studentName: user.name,
-        studentId: user.id,
-        marksData: studentMarksData,
+        studentId: user.uid, // Changed to user.uid
+        marksData: studentMarksDataForAI,
       };
       
       const result = await analyzeStudentPerformance(input);
@@ -162,4 +165,3 @@ export default function PerformanceAnalysisPage() {
     </div>
   );
 }
-

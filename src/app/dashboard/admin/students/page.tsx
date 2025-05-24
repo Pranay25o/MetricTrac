@@ -1,3 +1,4 @@
+
 // src/app/dashboard/admin/students/page.tsx
 "use client";
 
@@ -7,29 +8,45 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/contexts/auth-provider";
-import { mockStudents } from "@/lib/mock-data";
+import { mockStudents } from "@/lib/mock-data"; // Will be replaced with Firestore data
 import type { UserProfile } from "@/lib/types";
 import { MoreHorizontal, PlusCircle, Search, FileDown, Edit2, Trash2, Eye } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+// TODO: Replace mockStudents with actual data fetching from Firestore
+// import { collection, getDocs, query, where } from "firebase/firestore";
+// import { db } from "@/lib/firebase";
+
 export default function ManageStudentsPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
+  const [students, setStudents] = useState<UserProfile[]>(mockStudents); // Initially use mock, then Firestore
 
   useEffect(() => {
     if (!loading && (!user || user.role !== "admin")) {
       router.push("/dashboard");
     }
+    // TODO: Fetch actual student data from Firestore
+    // const fetchStudents = async () => {
+    //   if (user && user.role === 'admin') {
+    //     const q = query(collection(db, "users"), where("role", "==", "student"));
+    //     const querySnapshot = await getDocs(q);
+    //     const studentList = querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
+    //     setStudents(studentList);
+    //   }
+    // };
+    // fetchStudents();
   }, [user, loading, router]);
+
 
   if (loading || !user || user.role !== "admin") {
     return <p>Loading or unauthorized...</p>;
   }
   
-  const filteredStudents = mockStudents.filter(student => 
+  const filteredStudents = students.filter(student => 
     student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (student.prn && student.prn.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -79,7 +96,7 @@ export default function ManageStudentsPage() {
             </TableHeader>
             <TableBody>
               {filteredStudents.length > 0 ? filteredStudents.map((student: UserProfile) => (
-                <TableRow key={student.id}>
+                <TableRow key={student.uid}>
                   <TableCell>
                     <Image 
                       src={student.avatarUrl || "https://placehold.co/40x40.png"} 

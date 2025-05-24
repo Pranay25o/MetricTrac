@@ -1,3 +1,4 @@
+
 // src/app/dashboard/teacher/view-students/page.tsx
 "use client";
 
@@ -5,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/contexts/auth-provider";
-import { mockStudents, mockSubjects, mockSemesters, mockMarks, mockTeacherAssignments } from "@/lib/mock-data";
+import { mockStudents, mockSubjects, mockSemesters, mockMarks, mockTeacherAssignments } from "@/lib/mock-data"; // Will be replaced
 import type { Mark } from "@/lib/types";
 import { Eye, Filter } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -13,6 +14,7 @@ import { useEffect, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
+// TODO: Replace mock data with Firestore data fetching
 export default function ViewStudentsPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -27,31 +29,32 @@ export default function ViewStudentsPage() {
     }
   }, [user, loading, router]);
 
+  // TODO: Fetch assignments, semesters, subjects, marks from Firestore
   const teacherAssignments = useMemo(() => {
     if (!user) return [];
-    return mockTeacherAssignments.filter(ta => ta.teacherId === user.id);
+    return mockTeacherAssignments.filter(ta => ta.teacherUid === user.uid); // Changed to teacherUid
   }, [user]);
 
   const availableSemesters = useMemo(() => {
     const semesterIds = new Set(teacherAssignments.map(ta => ta.semesterId));
-    return mockSemesters.filter(s => semesterIds.has(s.id));
+    return mockSemesters.filter(s => semesterIds.has(s.id)); // TODO: Use semesters from Firestore
   }, [teacherAssignments]);
 
   const availableSubjects = useMemo(() => {
     if (!selectedSemester) return [];
     const subjectIds = new Set(teacherAssignments.filter(ta => ta.semesterId === selectedSemester).map(ta => ta.subjectId));
-    return mockSubjects.filter(s => subjectIds.has(s.id));
+    return mockSubjects.filter(s => subjectIds.has(s.id)); // TODO: Use subjects from Firestore
   }, [teacherAssignments, selectedSemester]);
 
   useEffect(() => {
     if (selectedSemester && selectedSubject) {
-      const marksForSubject = mockMarks.filter(
+      // TODO: Fetch marks for this subject/semester from Firestore
+      const marksForSubject = mockMarks.filter( // Replace mockMarks
         mark => mark.semesterId === selectedSemester && mark.subjectId === selectedSubject
       );
-      // Enrich with student names if not present
       const enrichedMarks = marksForSubject.map(mark => ({
         ...mark,
-        studentName: mark.studentName || mockStudents.find(s => s.id === mark.studentId)?.name || "Unknown Student",
+        studentName: mark.studentName || mockStudents.find(s => s.uid === mark.studentUid)?.name || "Unknown Student", // Changed to studentUid
       }));
       setStudentData(enrichedMarks);
     } else {
@@ -132,7 +135,7 @@ export default function ViewStudentsPage() {
                 {studentData.length > 0 ? studentData.map(mark => (
                   <TableRow key={mark.id}>
                     <TableCell className="font-medium">{mark.studentName}</TableCell>
-                    <TableCell>{mockStudents.find(s => s.id === mark.studentId)?.prn}</TableCell>
+                    <TableCell>{mockStudents.find(s => s.uid === mark.studentUid)?.prn}</TableCell> {/* Changed to studentUid */}
                     <TableCell>{mark.ca1 ?? '-'}</TableCell>
                     <TableCell>{mark.ca2 ?? '-'}</TableCell>
                     <TableCell>{mark.midTerm ?? '-'}</TableCell>
@@ -141,7 +144,8 @@ export default function ViewStudentsPage() {
                     <TableCell>{mark.grade ?? '-'}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/dashboard/student/${mark.studentId}/performance`}> {/* Placeholder link */}
+                         {/* Link to a student detail page, potentially /dashboard/student/[studentUid]/performance or similar */}
+                        <Link href={`/dashboard/student/${mark.studentUid}/performance-analysis`}>
                            <Eye className="h-4 w-4" />
                         </Link>
                       </Button>

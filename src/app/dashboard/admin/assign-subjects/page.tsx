@@ -9,12 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/auth-provider";
-import { mockTeacherAssignments, mockTeachers, mockSubjects, mockSemesters } from "@/lib/mock-data";
+import { mockTeacherAssignments, mockTeachers, mockSubjects, mockSemesters } from "@/lib/mock-data"; // Will be replaced
 import type { TeacherSubjectAssignment } from "@/lib/types";
 import { MoreHorizontal, PlusCircle, Search, Edit2, Trash2, Filter } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo } from "react";
 
+// TODO: Replace mock data with Firestore data fetching
 export default function AssignSubjectsPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -24,6 +25,7 @@ export default function AssignSubjectsPage() {
   const [selectedSubject, setSelectedSubject] = useState<string>("");
   const [selectedSemester, setSelectedSemester] = useState<string>("");
 
+  // TODO: Fetch actual teachers, subjects, semesters, and assignments from Firestore
   useEffect(() => {
     if (!loading && (!user || user.role !== "admin")) {
       router.push("/dashboard");
@@ -32,7 +34,7 @@ export default function AssignSubjectsPage() {
 
   const filteredAssignments = useMemo(() => {
     return assignments.filter(assignment => 
-      (!selectedTeacher || assignment.teacherId === selectedTeacher) &&
+      (!selectedTeacher || assignment.teacherUid === selectedTeacher) && // Changed to teacherUid
       (!selectedSubject || assignment.subjectId === selectedSubject) &&
       (!selectedSemester || assignment.semesterId === selectedSemester)
     );
@@ -71,9 +73,8 @@ export default function AssignSubjectsPage() {
                   <SelectValue placeholder="All Teachers" />
                 </SelectTrigger>
                 <SelectContent>
-                  {/* <SelectItem value="">All Teachers</SelectItem>  Removed this line */}
-                  {mockTeachers.map(teacher => (
-                    <SelectItem key={teacher.id} value={teacher.id}>{teacher.name}</SelectItem>
+                  {mockTeachers.map(teacher => ( // TODO: Use teachers from Firestore
+                    <SelectItem key={teacher.uid} value={teacher.uid}>{teacher.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -85,8 +86,7 @@ export default function AssignSubjectsPage() {
                   <SelectValue placeholder="All Subjects" />
                 </SelectTrigger>
                 <SelectContent>
-                  {/* <SelectItem value="">All Subjects</SelectItem> Removed this line */}
-                  {mockSubjects.map(subject => (
+                  {mockSubjects.map(subject => ( // TODO: Use subjects from Firestore
                     <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -99,8 +99,7 @@ export default function AssignSubjectsPage() {
                   <SelectValue placeholder="All Semesters" />
                 </SelectTrigger>
                 <SelectContent>
-                  {/* <SelectItem value="">All Semesters</SelectItem> Removed this line */}
-                  {mockSemesters.map(semester => (
+                  {mockSemesters.map(semester => ( // TODO: Use semesters from Firestore
                     <SelectItem key={semester.id} value={semester.id}>{semester.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -124,7 +123,7 @@ export default function AssignSubjectsPage() {
             <TableBody>
               {filteredAssignments.length > 0 ? filteredAssignments.map((assignment: TeacherSubjectAssignment) => (
                 <TableRow key={assignment.id}>
-                  <TableCell className="font-medium">{assignment.teacherName || mockTeachers.find(t=>t.id === assignment.teacherId)?.name}</TableCell>
+                  <TableCell className="font-medium">{assignment.teacherName || mockTeachers.find(t=>t.uid === assignment.teacherUid)?.name}</TableCell>
                   <TableCell>{assignment.subjectName || mockSubjects.find(s=>s.id === assignment.subjectId)?.name}</TableCell>
                   <TableCell>{assignment.semesterName || mockSemesters.find(sem=>sem.id === assignment.semesterId)?.name}</TableCell>
                   <TableCell className="text-right">

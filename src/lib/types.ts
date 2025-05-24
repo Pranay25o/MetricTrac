@@ -1,7 +1,8 @@
+
 export type Role = 'admin' | 'teacher' | 'student';
 
 export interface UserProfile {
-  id: string;
+  uid: string; // Changed from id to uid to match Firebase Auth
   email: string;
   name: string;
   role: Role;
@@ -25,7 +26,7 @@ export interface Semester {
 
 export interface Mark {
   id: string; 
-  studentId: string;
+  studentUid: string; // Changed from studentId to studentUid
   studentName?: string; // For easier display
   subjectId: string;
   subjectName?: string; // For easier display
@@ -37,13 +38,13 @@ export interface Mark {
   endTerm?: number; // out of 60
   total?: number; // Calculated: ca1 + ca2 + midTerm + endTerm (out of 100)
   grade?: string; // Calculated based on total
-  teacherId?: string; // ID of teacher who entered/last updated marks
+  teacherUid?: string; // Changed from teacherId to teacherUid
   lastUpdated?: string; // ISO date string
 }
 
 export interface TeacherSubjectAssignment {
   id: string;
-  teacherId: string;
+  teacherUid: string; // Changed from teacherId to teacherUid
   teacherName?: string;
   subjectId: string;
   subjectName?: string;

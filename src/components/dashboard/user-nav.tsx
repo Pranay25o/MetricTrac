@@ -1,3 +1,4 @@
+
 // src/components/dashboard/user-nav.tsx
 "use client";
 
@@ -36,7 +37,7 @@ export function UserNav() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-10 w-10 rounded-full">
           <Avatar className="h-10 w-10 border-2 border-primary">
-            <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="user profile" />
+            <AvatarImage src={user.avatarUrl || `https://placehold.co/100x100.png?text=${getInitials(user.name)}`} alt={user.name} data-ai-hint="user profile" />
             <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
           </Avatar>
         </Button>

@@ -1,3 +1,4 @@
+
 // src/app/dashboard/teacher/manage-marks/page.tsx
 "use client";
 
@@ -8,19 +9,20 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/contexts/auth-provider";
-import { mockStudents, mockSubjects, mockSemesters, mockMarks, mockTeacherAssignments } from "@/lib/mock-data";
+import { mockStudents, mockSubjects, mockSemesters, mockMarks, mockTeacherAssignments } from "@/lib/mock-data"; // Will be replaced
 import type { Mark } from "@/lib/types";
 import { Save, Search, Filter } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo } from "react";
 
+// TODO: Replace mock data with Firestore data fetching and mutations
 export default function ManageMarksPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
   const [selectedSemester, setSelectedSemester] = useState<string>("");
   const [selectedSubject, setSelectedSubject] = useState<string>("");
-  const [studentMarks, setStudentMarks] = useState<Partial<Mark>[]>([]); // Using Partial<Mark> for editable fields
+  const [studentMarks, setStudentMarks] = useState<Partial<Mark>[]>([]);
 
   useEffect(() => {
     if (!loading && (!user || user.role !== "teacher")) {
@@ -28,35 +30,35 @@ export default function ManageMarksPage() {
     }
   }, [user, loading, router]);
 
-  // Filter subjects and semesters assigned to this teacher
+  // TODO: Fetch assignments, semesters, subjects, students, and marks from Firestore
   const teacherAssignments = useMemo(() => {
     if (!user) return [];
-    return mockTeacherAssignments.filter(ta => ta.teacherId === user.id);
+    return mockTeacherAssignments.filter(ta => ta.teacherUid === user.uid); // Changed to teacherUid
   }, [user]);
 
   const availableSemesters = useMemo(() => {
     const semesterIds = new Set(teacherAssignments.map(ta => ta.semesterId));
-    return mockSemesters.filter(s => semesterIds.has(s.id));
+    return mockSemesters.filter(s => semesterIds.has(s.id)); // TODO: Use semesters from Firestore
   }, [teacherAssignments]);
 
   const availableSubjects = useMemo(() => {
     if (!selectedSemester) return [];
     const subjectIds = new Set(teacherAssignments.filter(ta => ta.semesterId === selectedSemester).map(ta => ta.subjectId));
-    return mockSubjects.filter(s => subjectIds.has(s.id));
+    return mockSubjects.filter(s => subjectIds.has(s.id)); // TODO: Use subjects from Firestore
   }, [teacherAssignments, selectedSemester]);
   
   useEffect(() => {
     if (selectedSemester && selectedSubject) {
-      // Fetch or filter marks for students in this subject & semester
-      // For mock: find students (all for now) and their marks for this subject/semester
-      const marksForDisplay: Partial<Mark>[] = mockStudents.map(student => {
+      // Fetch marks for students in this subject & semester from Firestore
+      // For mock:
+      const marksForDisplay: Partial<Mark>[] = mockStudents.map(student => { // TODO: Use students for this subject/semester from Firestore
         const existingMark = mockMarks.find(
-          m => m.studentId === student.id && m.subjectId === selectedSubject && m.semesterId === selectedSemester
+          m => m.studentUid === student.uid && m.subjectId === selectedSubject && m.semesterId === selectedSemester // Changed to studentUid
         );
         return existingMark ? 
           { ...existingMark } : 
           { 
-            studentId: student.id, 
+            studentUid: student.uid, // Changed to studentUid
             studentName: student.name,
             subjectId: selectedSubject,
             semesterId: selectedSemester,
@@ -69,18 +71,16 @@ export default function ManageMarksPage() {
     }
   }, [selectedSemester, selectedSubject]);
 
-  const handleMarkChange = (studentId: string, field: keyof Mark, value: string) => {
+  const handleMarkChange = (studentUid: string, field: keyof Mark, value: string) => { // Changed to studentUid
     const numericValue = value === "" ? undefined : parseInt(value, 10);
-    // Basic validation (more robust validation would be needed)
     if (value !== "" && (isNaN(numericValue!) || numericValue! < 0)) return;
     if (field === "ca1" || field === "ca2") { if (numericValue! > 10) return; }
     if (field === "midTerm") { if (numericValue! > 20) return; }
     if (field === "endTerm") { if (numericValue! > 60) return; }
 
-
     setStudentMarks(prevMarks =>
       prevMarks.map(mark =>
-        mark.studentId === studentId ? { ...mark, [field]: numericValue } : mark
+        mark.studentUid === studentUid ? { ...mark, [field]: numericValue } : mark // Changed to studentUid
       )
     );
   };
@@ -95,7 +95,7 @@ export default function ManageMarksPage() {
   }
 
   const handleSaveChanges = () => {
-    // Logic to save changes to Firestore
+    // TODO: Logic to save changes to Firestore
     console.log("Saving marks:", studentMarks.map(m => ({...m, total: calculateTotal(m) })));
     alert("Marks saved successfully (mock)!");
   };
@@ -167,19 +167,19 @@ export default function ManageMarksPage() {
                 </TableHeader>
                 <TableBody>
                   {studentMarks.length > 0 ? studentMarks.map(mark => (
-                    <TableRow key={mark.studentId}>
+                    <TableRow key={mark.studentUid}>
                       <TableCell className="font-medium">{mark.studentName}</TableCell>
                       <TableCell>
-                        <Input type="number" min="0" max="10" value={mark.ca1 ?? ""} onChange={e => handleMarkChange(mark.studentId!, 'ca1', e.target.value)} className="h-8"/>
+                        <Input type="number" min="0" max="10" value={mark.ca1 ?? ""} onChange={e => handleMarkChange(mark.studentUid!, 'ca1', e.target.value)} className="h-8"/>
                       </TableCell>
                       <TableCell>
-                        <Input type="number" min="0" max="10" value={mark.ca2 ?? ""} onChange={e => handleMarkChange(mark.studentId!, 'ca2', e.target.value)} className="h-8"/>
+                        <Input type="number" min="0" max="10" value={mark.ca2 ?? ""} onChange={e => handleMarkChange(mark.studentUid!, 'ca2', e.target.value)} className="h-8"/>
                       </TableCell>
                       <TableCell>
-                        <Input type="number" min="0" max="20" value={mark.midTerm ?? ""} onChange={e => handleMarkChange(mark.studentId!, 'midTerm', e.target.value)} className="h-8"/>
+                        <Input type="number" min="0" max="20" value={mark.midTerm ?? ""} onChange={e => handleMarkChange(mark.studentUid!, 'midTerm', e.target.value)} className="h-8"/>
                       </TableCell>
                       <TableCell>
-                        <Input type="number" min="0" max="60" value={mark.endTerm ?? ""} onChange={e => handleMarkChange(mark.studentId!, 'endTerm', e.target.value)} className="h-8"/>
+                        <Input type="number" min="0" max="60" value={mark.endTerm ?? ""} onChange={e => handleMarkChange(mark.studentUid!, 'endTerm', e.target.value)} className="h-8"/>
                       </TableCell>
                        <TableCell>{calculateTotal(mark) ?? '-'}</TableCell>
                     </TableRow>
