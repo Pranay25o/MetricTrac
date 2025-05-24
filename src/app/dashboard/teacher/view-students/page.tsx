@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label"; // Added import
+import { Label } from "@/components/ui/label";
 
 export default function ViewStudentsPage() {
   const { user, loading: authLoading } = useAuth();
@@ -108,7 +108,7 @@ export default function ViewStudentsPage() {
       setStudentMarksData(enrichedMarks);
     } catch (error) {
       console.error("Error fetching marks:", error);
-      toast({ title: "Error", description: "Could not load marks for this selection.", variant: "destructive" });
+      toast({ title: "Error", description: "Could not load marks for this selection. Check console for Firestore index errors.", variant: "destructive" });
       setStudentMarksData([]);
     } finally {
       setIsLoadingMarks(false);
@@ -196,19 +196,11 @@ export default function ViewStudentsPage() {
               <TableBody>
                 {studentMarksData.length > 0 ? studentMarksData.map(mark => (
                   <TableRow key={mark.id}>
-                    <TableCell className="font-medium">{mark.studentName}</TableCell>
-                    <TableCell>{(mark as any).prn || 'N/A'}</TableCell> {/* Access enriched PRN */}
-                    <TableCell>{mark.ca1 ?? '-'}</TableCell>
-                    <TableCell>{mark.ca2 ?? '-'}</TableCell>
-                    <TableCell>{mark.midTerm ?? '-'}</TableCell>
-                    <TableCell>{mark.endTerm ?? '-'}</TableCell>
-                    <TableCell className="font-semibold">{mark.total ?? '-'}</TableCell>
-                    <TableCell>
+                    <TableCell className="font-medium">{mark.studentName}</TableCell><TableCell>{(mark as any).prn || 'N/A'}</TableCell><TableCell>{mark.ca1 ?? '-'}</TableCell><TableCell>{mark.ca2 ?? '-'}</TableCell><TableCell>{mark.midTerm ?? '-'}</TableCell><TableCell>{mark.endTerm ?? '-'}</TableCell><TableCell className="font-semibold">{mark.total ?? '-'}</TableCell><TableCell>
                       <Badge variant={ (mark.grade?.startsWith("A") || mark.grade?.startsWith("B")) ? "default" : (mark.grade?.startsWith("C") || mark.grade?.startsWith("D")) ? "secondary" : "destructive"}>
                         {mark.grade ?? '-'}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
+                    </TableCell><TableCell className="text-right">
                       <Button variant="ghost" size="sm" asChild>
                         <Link href={`/dashboard/student/${mark.studentUid}/performance-analysis`}>
                            <Eye className="h-4 w-4" />
