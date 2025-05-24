@@ -2,7 +2,6 @@
 // src/components/dashboard/user-nav.tsx
 "use client";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -14,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/auth-provider";
-import { LogOut, User as UserIcon, Settings } from "lucide-react";
+import { LogOut, User as UserIcon, Settings, ChevronDown } from "lucide-react"; // Added ChevronDown
 
 export function UserNav() {
   const { user, logout } = useAuth();
@@ -35,11 +34,14 @@ export function UserNav() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-          <Avatar className="h-10 w-10 border-2 border-primary">
-            <AvatarImage src={user.avatarUrl || `https://placehold.co/100x100.png?text=${getInitials(user.name)}`} alt={user.name} data-ai-hint="user profile" />
-            <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
-          </Avatar>
+        <Button variant="ghost" className="relative h-10 pl-2 pr-3 flex items-center gap-2 rounded-full focus-visible:ring-0 focus-visible:ring-offset-0">
+          <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold text-sm">
+            {getInitials(user.name)}
+          </div>
+          <span className="text-sm font-medium text-foreground group-data-[collapsible=icon]:hidden truncate max-w-[100px] md:max-w-[150px]">
+            {user.name.split(' ')[0]} {/* Show first name */}
+          </span>
+          <ChevronDown className="h-4 w-4 text-muted-foreground group-data-[collapsible=icon]:hidden" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
@@ -48,6 +50,9 @@ export function UserNav() {
             <p className="text-sm font-medium leading-none">{user.name}</p>
             <p className="text-xs leading-none text-muted-foreground">
               {user.email}
+            </p>
+            <p className="text-xs leading-none text-muted-foreground capitalize mt-1">
+              Role: {user.role}
             </p>
           </div>
         </DropdownMenuLabel>
@@ -71,3 +76,4 @@ export function UserNav() {
     </DropdownMenu>
   );
 }
+

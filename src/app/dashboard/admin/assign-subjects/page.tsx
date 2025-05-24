@@ -13,7 +13,7 @@ import { useAuth } from "@/contexts/auth-provider";
 import { getSemesters } from "@/lib/firestore/semesters";
 import { getSubjects } from "@/lib/firestore/subjects";
 import { getUsers } from "@/lib/firestore/users";
-import { addTeacherAssignment, getTeacherAssignments, deleteTeacherAssignment as deleteAssignmentFromDb } from "@/lib/firestore/teacherAssignments";
+import { addTeacherAssignment, getTeacherAssignments, deleteTeacherAssignment as deleteAssignmentFromDb, updateTeacherAssignment } from "@/lib/firestore/teacherAssignments";
 import type { TeacherSubjectAssignment, UserProfile, Subject, Semester } from "@/lib/types";
 import { MoreHorizontal, PlusCircle, Edit2, Trash2, Filter, Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -45,6 +45,15 @@ export default function AssignSubjectsPage() {
   const [newAssignmentSubjectId, setNewAssignmentSubjectId] = useState<string>("");
   const [newAssignmentSemesterId, setNewAssignmentSemesterId] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Edit Dialog State
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState<TeacherSubjectAssignment | null>(null);
+  const [editAssignmentTeacherUid, setEditAssignmentTeacherUid] = useState<string>("");
+  const [editAssignmentSubjectId, setEditAssignmentSubjectId] = useState<string>("");
+  const [editAssignmentSemesterId, setEditAssignmentSemesterId] = useState<string>("");
+  const [isUpdating, setIsUpdating] = useState(false);
+
 
   useEffect(() => {
     if (!authLoading && (!user || user.role !== "admin")) {
@@ -120,7 +129,7 @@ export default function AssignSubjectsPage() {
 
       if (!teacher || !subject || !semester) {
         toast({ title: "Error", description: "Selected teacher, subject or semester not found.", variant: "destructive" });
-        setIsSubmitting(false); // Ensure button is re-enabled
+        setIsSubmitting(false);
         return;
       }
 
@@ -137,7 +146,7 @@ export default function AssignSubjectsPage() {
       setNewAssignmentSubjectId("");
       setNewAssignmentSemesterId("");
       setIsAddDialogOpen(false);
-      fetchAssignments(); // Refresh list
+      fetchAssignments(); 
     } catch (error) {
       console.error("Error adding assignment:", error);
       toast({ title: "Error", description: "Could not add assignment. It might already exist.", variant: "destructive" });
@@ -146,12 +155,60 @@ export default function AssignSubjectsPage() {
     }
   };
 
+  const openEditDialog = (assignment: TeacherSubjectAssignment) => {
+    setEditingAssignment(assignment);
+    setEditAssignmentTeacherUid(assignment.teacherUid);
+    setEditAssignmentSubjectId(assignment.subjectId);
+    setEditAssignmentSemesterId(assignment.semesterId);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateAssignment = async () => {
+    if (!editingAssignment || !editAssignmentTeacherUid || !editAssignmentSubjectId || !editAssignmentSemesterId) {
+      toast({ title: "Validation Error", description: "Please select a teacher, subject, and semester for the update.", variant: "destructive" });
+      return;
+    }
+    setIsUpdating(true);
+    try {
+      const teacher = allTeachers.find(t => t.uid === editAssignmentTeacherUid);
+      const subject = allSubjects.find(s => s.id === editAssignmentSubjectId);
+      const semester = allSemesters.find(s => s.id === editAssignmentSemesterId);
+
+      if (!teacher || !subject || !semester) {
+        toast({ title: "Error", description: "Updated teacher, subject or semester not found.", variant: "destructive" });
+        setIsUpdating(false);
+        return;
+      }
+      
+      const updatedAssignmentData: Partial<TeacherSubjectAssignment> = {
+        teacherUid: editAssignmentTeacherUid,
+        teacherName: teacher.name,
+        subjectId: editAssignmentSubjectId,
+        subjectName: subject.name,
+        semesterId: editAssignmentSemesterId,
+        semesterName: semester.name,
+      };
+
+      await updateTeacherAssignment(editingAssignment.id, updatedAssignmentData);
+      toast({ title: "Success", description: "Assignment updated successfully." });
+      setIsEditDialogOpen(false);
+      setEditingAssignment(null);
+      fetchAssignments();
+    } catch (error) {
+      console.error("Error updating assignment:", error);
+      toast({ title: "Error", description: "Could not update assignment.", variant: "destructive" });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+
   const handleDeleteAssignment = async (assignmentId: string) => {
     if (!window.confirm("Are you sure you want to delete this assignment?")) return;
     try {
       await deleteAssignmentFromDb(assignmentId);
       toast({ title: "Success", description: "Assignment deleted successfully." });
-      fetchAssignments(); // Refresh list
+      fetchAssignments(); 
     } catch (error) {
       console.error("Error deleting assignment:", error);
       toast({ title: "Error", description: "Could not delete assignment.", variant: "destructive" });
@@ -222,6 +279,53 @@ export default function AssignSubjectsPage() {
         </Dialog>
       </div>
 
+      {/* Edit Assignment Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Assignment</DialogTitle>
+          </DialogHeader>
+          {editingAssignment && (
+            <div className="grid gap-4 py-4">
+              <div>
+                <Label htmlFor="editAssignTeacher">Teacher</Label>
+                <Select value={editAssignmentTeacherUid} onValueChange={setEditAssignmentTeacherUid} disabled={allTeachers.length === 0}>
+                  <SelectTrigger id="editAssignTeacher"><SelectValue placeholder="Select Teacher" /></SelectTrigger>
+                  <SelectContent>
+                    {allTeachers.map(t => <SelectItem key={t.uid} value={t.uid}>{t.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="editAssignSubject">Subject</Label>
+                <Select value={editAssignmentSubjectId} onValueChange={setEditAssignmentSubjectId} disabled={allSubjects.length === 0}>
+                  <SelectTrigger id="editAssignSubject"><SelectValue placeholder="Select Subject" /></SelectTrigger>
+                  <SelectContent>
+                    {allSubjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name} ({s.code})</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="editAssignSemester">Semester</Label>
+                <Select value={editAssignmentSemesterId} onValueChange={setEditAssignmentSemesterId} disabled={allSemesters.length === 0}>
+                  <SelectTrigger id="editAssignSemester"><SelectValue placeholder="Select Semester" /></SelectTrigger>
+                  <SelectContent>
+                    {allSemesters.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline" onClick={() => setEditingAssignment(null)}>Cancel</Button></DialogClose>
+            <Button onClick={handleUpdateAssignment} disabled={isUpdating || isLoading || !editingAssignment || allTeachers.length === 0 || allSubjects.length === 0 || allSemesters.length === 0}>
+              {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Update Assignment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Current Assignments</CardTitle>
@@ -291,7 +395,7 @@ export default function AssignSubjectsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => console.log("Edit assignment:", assignment.id) /* TODO */}>
+                        <DropdownMenuItem onClick={() => openEditDialog(assignment)}>
                           <Edit2 className="mr-2 h-4 w-4" /> Edit Assignment
                         </DropdownMenuItem>
                         <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => handleDeleteAssignment(assignment.id)}>
