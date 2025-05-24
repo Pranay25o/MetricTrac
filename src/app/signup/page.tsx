@@ -49,6 +49,11 @@ export default function SignupPage() {
       toast({ title: "Signup Error", description: "PRN is required for students.", variant: "destructive" });
       return;
     }
+    // Admin role should not be selectable from public signup
+    if (role === 'admin') {
+        toast({ title: "Signup Error", description: "Cannot create admin account from this page.", variant: "destructive" });
+        return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -56,9 +61,12 @@ export default function SignupPage() {
       // AuthProvider's onAuthStateChanged will handle redirect after successful signup
     } catch (error: any) {
       // Error toast is handled by signupUser in AuthProvider
+      // setIsSubmitting(false); // This will be set by the effect or if an error isn't caught by signupUser
+    } finally {
+      // Ensure isSubmitting is reset if signupUser completes (even with an internal error toast)
+      // or if redirection doesn't happen immediately.
       setIsSubmitting(false);
     }
-    // setIsSubmitting(false) will be handled by redirection or error in signupUser
   };
 
   if (loading || (!loading && user)) {
@@ -107,7 +115,7 @@ export default function SignupPage() {
                 <SelectContent>
                   <SelectItem value="student">Student</SelectItem>
                   <SelectItem value="teacher">Teacher</SelectItem>
-                  {/* Admin role typically assigned manually, not self-signup */}
+                  {/* Admin role intentionally removed from public signup */}
                 </SelectContent>
               </Select>
             </div>
