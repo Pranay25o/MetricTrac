@@ -56,16 +56,18 @@ export default function LoginPage() {
     setPageAlert(null); // Clear any previous page alerts on new login attempt
     try {
       await loginUser(email, password);
-      // AuthProvider's onAuthStateChanged will handle redirect or further state changes
+      // AuthProvider's onAuthStateChanged will handle redirect or further state changes.
+      // If login is successful, redirection will occur, and setIsSubmitting(false) below might not run or matter.
     } catch (error: any) {
-      // Error toast is handled by loginUser in AuthProvider
-      // setIsSubmitting(false) is handled by loginUser or redirection logic
+      // This catch block is unlikely to be hit if loginUser in AuthProvider
+      // handles all its own errors and shows toasts.
+      // console.error("Login page caught error (should be handled by AuthProvider):", error);
+      // toast({ title: "Login Error", description: "An unexpected error occurred on the login page.", variant: "destructive" });
+    } finally {
+      // This ensures isSubmitting is reset if loginUser completes (even if it handles an error internally
+      // and doesn't throw up to here), or if an unexpected error occurred that wasn't caught by loginUser.
+      setIsSubmitting(false);
     }
-    // If loginUser fails and calls setLoading(false), we want to reflect that here
-    // This might be better handled if loginUser returns a status or if we rely solely on loading state from useAuth
-    // For now, loginUser sets loading to false on its own error paths.
-    // If successful, redirection will happen.
-    // If loginUser itself sets loading to false (e.g. for non-admin email), this will reflect in the button.
   };
   
   if (loading || (!loading && user && !pageAlert)) { // Show loading if auth is loading, or if user exists (and no alert is pending from redirection)
