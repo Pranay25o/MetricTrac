@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label"; // Added import
 
 export default function ViewStudentsPage() {
   const { user, loading: authLoading } = useAuth();
