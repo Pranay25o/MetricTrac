@@ -8,11 +8,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/contexts/auth-provider";
-import { getUsers, deleteUserFromFirestore } from "@/lib/firestore/users"; // Import deleteUserFromFirestore
+import { getUsers, deleteUserFromFirestore } from "@/lib/firestore/users"; 
 import { getAssignmentsByTeacher } from "@/lib/firestore/teacherAssignments"; 
 import type { UserProfile } from "@/lib/types";
 import { MoreHorizontal, PlusCircle, Search, FileDown, Edit2, Trash2, Eye, BookOpen, Loader2 } from "lucide-react";
-// import Image from "next/image"; // Avatar removed
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -47,11 +46,12 @@ export default function ManageTeachersPage() {
         } catch (assignmentError) {
             console.error(`Error fetching assignments for teacher ${teacher.uid} (${teacher.name}):`, assignmentError);
             counts[teacher.uid] = 0; 
-            toast({
-                title: "Assignment Count Error",
-                description: `Could not fetch assignment count for ${teacher.name}.`,
-                variant: "destructive"
-            });
+            // Consider if toast is needed here, could be noisy if many teachers fail
+            // toast({
+            //     title: "Assignment Count Error",
+            //     description: `Could not fetch assignment count for ${teacher.name}.`,
+            //     variant: "destructive"
+            // });
         }
       }
       setAssignedCounts(counts);
@@ -62,7 +62,7 @@ export default function ManageTeachersPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast]); // Removed getUsers from dependencies as it's a stable import
 
   useEffect(() => {
     if (!authLoading && (!user || user.role !== "admin")) {
@@ -87,7 +87,7 @@ export default function ManageTeachersPage() {
     setIsDeleting(true);
     try {
       await deleteUserFromFirestore(teacherToDelete.uid);
-      toast({ title: "Teacher Deleted from Firestore", description: `${teacherToDelete.name} has been removed from the database. Remember to delete them from Firebase Authentication manually.` });
+      toast({ title: "Teacher Deleted", description: `${teacherToDelete.name} has been removed from the database. Remember to delete from Firebase Authentication manually.` });
       fetchTeachersAndCounts(); // Refresh the list
       setIsDeleteDialogOpen(false);
       setTeacherToDelete(null);
@@ -126,7 +126,10 @@ export default function ManageTeachersPage() {
       </div>
 
       {/* Delete Teacher Confirmation Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <Dialog open={isDeleteDialogOpen} onOpenChange={(isOpen) => {
+        setIsDeleteDialogOpen(isOpen);
+        if (!isOpen) setTeacherToDelete(null);
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Teacher</DialogTitle>
@@ -136,9 +139,7 @@ export default function ManageTeachersPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline" onClick={() => setTeacherToDelete(null)}>Cancel</Button>
-            </DialogClose>
+            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
             <Button variant="destructive" onClick={handleDeleteTeacher} disabled={isDeleting}>
               {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Delete Teacher
@@ -171,7 +172,6 @@ export default function ManageTeachersPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                {/* Avatar column removed */}
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Assigned Subjects</TableHead>
@@ -181,7 +181,6 @@ export default function ManageTeachersPage() {
             <TableBody>
               {filteredTeachers.length > 0 ? filteredTeachers.map((teacher: UserProfile) => (
                 <TableRow key={teacher.uid}>
-                  {/* Avatar TableCell removed */}
                   <TableCell className="font-medium">{teacher.name}</TableCell>
                   <TableCell>{teacher.email}</TableCell>
                   <TableCell>
@@ -216,8 +215,8 @@ export default function ManageTeachersPage() {
                 </TableRow>
               )) : (
                  <TableRow>
-                  <TableCell colSpan={4} className="text-center h-24"> {/* ColSpan updated to 4 */}
-                    No teachers found. {teachers.length === 0 && !searchTerm ? "No teachers registered yet. Please add teachers to the system." : "Clear search or add teachers."}
+                  <TableCell colSpan={4} className="text-center h-24">
+                    No teachers found. {teachers.length === 0 && !searchTerm ? "No teachers registered yet. Use the Signup page to add teachers." : "Clear search or add teachers."}
                   </TableCell>
                 </TableRow>
               )}

@@ -7,10 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/auth-provider";
-import { addSubject, getSubjects, deleteSubject as deleteSubjectFromDb } from "@/lib/firestore/subjects";
+import { addSubject, getSubjects, deleteSubject as deleteSubjectFromDb, updateSubject } from "@/lib/firestore/subjects";
 import type { Subject } from "@/lib/types";
 import { MoreHorizontal, PlusCircle, Search, Edit2, Trash2, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -26,10 +26,19 @@ export default function ManageSubjectsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Add Dialog State
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newSubjectName, setNewSubjectName] = useState("");
   const [newSubjectCode, setNewSubjectCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Edit Dialog State
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
+  const [editSubjectName, setEditSubjectName] = useState("");
+  const [editSubjectCode, setEditSubjectCode] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
+
 
   useEffect(() => {
     if (!authLoading && (!user || user.role !== "admin")) {
@@ -68,7 +77,7 @@ export default function ManageSubjectsPage() {
       setNewSubjectName("");
       setNewSubjectCode("");
       setIsAddDialogOpen(false);
-      fetchSubjects(); // Refresh list
+      fetchSubjects(); 
     } catch (error) {
       console.error("Error adding subject:", error);
       toast({ title: "Error", description: "Could not add subject.", variant: "destructive" });
@@ -77,12 +86,39 @@ export default function ManageSubjectsPage() {
     }
   };
 
+  const openEditDialog = (subject: Subject) => {
+    setEditingSubject(subject);
+    setEditSubjectName(subject.name);
+    setEditSubjectCode(subject.code);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateSubject = async () => {
+    if (!editingSubject || !editSubjectName || !editSubjectCode) {
+      toast({ title: "Validation Error", description: "Subject Name and Code are required for update.", variant: "destructive" });
+      return;
+    }
+    setIsUpdating(true);
+    try {
+      await updateSubject(editingSubject.id, { name: editSubjectName, code: editSubjectCode });
+      toast({ title: "Success", description: "Subject updated successfully." });
+      setIsEditDialogOpen(false);
+      setEditingSubject(null);
+      fetchSubjects();
+    } catch (error) {
+      console.error("Error updating subject:", error);
+      toast({ title: "Error", description: "Could not update subject.", variant: "destructive" });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleDeleteSubject = async (subjectId: string) => {
      if (!window.confirm("Are you sure you want to delete this subject? This action cannot be undone.")) return;
     try {
       await deleteSubjectFromDb(subjectId);
       toast({ title: "Success", description: "Subject deleted successfully." });
-      fetchSubjects(); // Refresh list
+      fetchSubjects(); 
     } catch (error) {
       console.error("Error deleting subject:", error);
       toast({ title: "Error", description: "Could not delete subject. It might be assigned to teachers or have marks recorded.", variant: "destructive" });
@@ -105,7 +141,13 @@ export default function ManageSubjectsPage() {
           <h1 className="text-3xl font-bold tracking-tight text-primary">Manage Subjects</h1>
           <p className="text-muted-foreground">Define and manage academic subjects.</p>
         </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <Dialog open={isAddDialogOpen} onOpenChange={(isOpen) => {
+            setIsAddDialogOpen(isOpen);
+            if (!isOpen) {
+                setNewSubjectName("");
+                setNewSubjectCode("");
+            }
+        }}>
           <DialogTrigger asChild>
             <Button>
               <PlusCircle className="mr-2 h-4 w-4" /> Add Subject
@@ -117,12 +159,12 @@ export default function ManageSubjectsPage() {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="subjectName" className="text-right">Name</Label>
-                <Input id="subjectName" value={newSubjectName} onChange={(e) => setNewSubjectName(e.target.value)} className="col-span-3" placeholder="e.g., Data Structures" />
+                <Label htmlFor="subjectNameAdd" className="text-right">Name</Label>
+                <Input id="subjectNameAdd" value={newSubjectName} onChange={(e) => setNewSubjectName(e.target.value)} className="col-span-3" placeholder="e.g., Data Structures" />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="subjectCode" className="text-right">Code</Label>
-                <Input id="subjectCode" value={newSubjectCode} onChange={(e) => setNewSubjectCode(e.target.value)} className="col-span-3" placeholder="e.g., CS201"/>
+                <Label htmlFor="subjectCodeAdd" className="text-right">Code</Label>
+                <Input id="subjectCodeAdd" value={newSubjectCode} onChange={(e) => setNewSubjectCode(e.target.value)} className="col-span-3" placeholder="e.g., CS201"/>
               </div>
             </div>
             <DialogFooter>
@@ -135,6 +177,38 @@ export default function ManageSubjectsPage() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Edit Subject Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {
+        setIsEditDialogOpen(isOpen);
+        if (!isOpen) setEditingSubject(null);
+      }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit Subject</DialogTitle>
+            <DialogDescription>Modify the name or code for this subject.</DialogDescription>
+          </DialogHeader>
+          {editingSubject && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="subjectNameEdit" className="text-right">Name</Label>
+                <Input id="subjectNameEdit" value={editSubjectName} onChange={(e) => setEditSubjectName(e.target.value)} className="col-span-3" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="subjectCodeEdit" className="text-right">Code</Label>
+                <Input id="subjectCodeEdit" value={editSubjectCode} onChange={(e) => setEditSubjectCode(e.target.value)} className="col-span-3" />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline" onClick={() => setEditingSubject(null)}>Cancel</Button></DialogClose>
+            <Button onClick={handleUpdateSubject} disabled={isUpdating || !editingSubject}>
+              {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Update Subject
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Card className="shadow-lg">
         <CardHeader>
@@ -180,7 +254,7 @@ export default function ManageSubjectsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => console.log("Edit subject:", subject.id) /* TODO: Implement Edit Dialog */}>
+                        <DropdownMenuItem onClick={() => openEditDialog(subject)}>
                           <Edit2 className="mr-2 h-4 w-4" /> Edit Subject
                         </DropdownMenuItem>
                         <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => handleDeleteSubject(subject.id)}>

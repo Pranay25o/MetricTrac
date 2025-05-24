@@ -31,7 +31,7 @@ export default function AssignSubjectsPage() {
   const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
   const [allSemesters, setAllSemesters] = useState<Semester[]>([]);
   
-  const [isLoading, setIsLoading] = useState(true); 
+  const [isLoadingPrerequisites, setIsLoadingPrerequisites] = useState(true); 
   const [isLoadingAssignments, setIsLoadingAssignments] = useState(true); 
 
   // Filters
@@ -68,9 +68,9 @@ export default function AssignSubjectsPage() {
     }
   }, [searchParams]);
 
-  const fetchData = useCallback(async () => {
-    console.log("AssignSubjectsPage: fetchData triggered");
-    setIsLoading(true);
+  const fetchPrerequisiteData = useCallback(async () => {
+    console.log("AssignSubjectsPage: fetchPrerequisiteData triggered");
+    setIsLoadingPrerequisites(true);
     try {
       const [teachers, subjects, semesters] = await Promise.all([
         getUsers("teacher"),
@@ -85,21 +85,11 @@ export default function AssignSubjectsPage() {
       console.error("Error fetching prerequisite data:", error);
       toast({ title: "Error", description: "Could not load teachers, subjects, or semesters.", variant: "destructive" });
     } finally {
-      setIsLoading(false);
+      setIsLoadingPrerequisites(false);
     }
   }, [toast]);
   
   const fetchAssignments = useCallback(async () => {
-    // IMPORTANT: For filtering to work correctly with Firestore, you might need to create
-    // composite indexes in your Firebase console for various combinations of
-    // (teacherUid, subjectId, semesterId) used with orderBy('teacherName'), orderBy('subjectName').
-    // Example indexes:
-    // - teacherAssignments: teacherUid ASC, teacherName ASC, subjectName ASC
-    // - teacherAssignments: subjectId ASC, teacherName ASC, subjectName ASC
-    // - teacherAssignments: semesterId ASC, teacherName ASC, subjectName ASC
-    // - teacherAssignments: teacherUid ASC, subjectId ASC, teacherName ASC, subjectName ASC
-    // - ... and other combinations if you use them.
-    // Firestore will provide a link in the console error if an index is missing.
     console.log("AssignSubjectsPage: fetchAssignments triggered with filters:", { filterTeacher, filterSubject, filterSemester });
     setIsLoadingAssignments(true);
     try {
@@ -121,15 +111,15 @@ export default function AssignSubjectsPage() {
 
   useEffect(() => {
     if (user && user.role === "admin") {
-      fetchData();
+      fetchPrerequisiteData();
     }
-  }, [user, fetchData]);
+  }, [user, fetchPrerequisiteData]);
   
   useEffect(() => {
-    if (user && user.role === "admin") {
+    if (user && user.role === "admin" && !isLoadingPrerequisites) { // Fetch assignments only after prerequisites are loaded
      fetchAssignments();
     }
-  }, [user, filterTeacher, filterSubject, filterSemester, fetchAssignments]); 
+  }, [user, filterTeacher, filterSubject, filterSemester, fetchAssignments, isLoadingPrerequisites]); 
 
   const handleAddAssignment = async () => {
     if (!newAssignmentTeacherUid || !newAssignmentSubjectId || !newAssignmentSemesterId) {
@@ -221,7 +211,7 @@ export default function AssignSubjectsPage() {
       console.log("AssignSubjectsPage: Successfully updated assignment:", editingAssignment.id);
       toast({ title: "Success", description: "Assignment updated successfully." });
       setIsEditDialogOpen(false);
-      setEditingAssignment(null);
+      setEditingAssignment(null); // Clear editing state
       fetchAssignments();
     } catch (error) {
       console.error("Error updating assignment:", error);
@@ -230,7 +220,6 @@ export default function AssignSubjectsPage() {
       setIsUpdating(false);
     }
   };
-
 
   const handleDeleteAssignment = async (assignmentId: string) => {
     console.log("AssignSubjectsPage: Attempting to delete assignment:", assignmentId);
@@ -248,18 +237,17 @@ export default function AssignSubjectsPage() {
       toast({ title: "Error", description: "Could not delete assignment.", variant: "destructive" });
     }
   };
-
+  
   let noAssignmentsMessage = "No assignments found.";
-  if (!isLoadingAssignments && !isLoading && assignments.length === 0) {
+  if (!isLoadingAssignments && !isLoadingPrerequisites && assignments.length === 0) {
     if (filterTeacher || filterSubject || filterSemester) {
       noAssignmentsMessage = "No assignments match your current filters. Try clearing them or check console for index errors if data should exist.";
     } else if (allTeachers.length === 0 || allSubjects.length === 0 || allSemesters.length === 0) {
       noAssignmentsMessage = "Cannot create assignments yet. Please ensure teachers, subjects, and semesters have been added to the system.";
     } else {
-      noAssignmentsMessage = "No assignments have been created yet. Try adding a new assignment using the button above.";
+      noAssignmentsMessage = "No assignments have been created yet. Click 'New Assignment' to add one.";
     }
   }
-
 
   if (authLoading || !user || user.role !== "admin") {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /><p className="ml-2">Loading or unauthorized...</p></div>;
@@ -272,9 +260,16 @@ export default function AssignSubjectsPage() {
           <h1 className="text-3xl font-bold tracking-tight text-primary">Assign Subjects to Teachers</h1>
           <p className="text-muted-foreground">Manage teacher-subject assignments for each semester.</p>
         </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <Dialog open={isAddDialogOpen} onOpenChange={(isOpen) => {
+            setIsAddDialogOpen(isOpen);
+            if (!isOpen) { // Reset form on close
+                setNewAssignmentTeacherUid("");
+                setNewAssignmentSubjectId("");
+                setNewAssignmentSemesterId("");
+            }
+        }}>
           <DialogTrigger asChild>
-            <Button disabled={isLoading}>
+            <Button disabled={isLoadingPrerequisites}>
               <PlusCircle className="mr-2 h-4 w-4" /> New Assignment
             </Button>
           </DialogTrigger>
@@ -285,38 +280,38 @@ export default function AssignSubjectsPage() {
             <div className="grid gap-4 py-4">
               <div>
                 <Label htmlFor="newAssignTeacher">Teacher</Label>
-                <Select value={newAssignmentTeacherUid} onValueChange={setNewAssignmentTeacherUid} disabled={allTeachers.length === 0 || isLoading}>
+                <Select value={newAssignmentTeacherUid} onValueChange={setNewAssignmentTeacherUid} disabled={allTeachers.length === 0 || isLoadingPrerequisites}>
                   <SelectTrigger id="newAssignTeacher"><SelectValue placeholder="Select Teacher" /></SelectTrigger>
                   <SelectContent>
                     {allTeachers.map(t => <SelectItem key={t.uid} value={t.uid}>{t.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                 {allTeachers.length === 0 && !isLoading && <p className="text-xs text-muted-foreground mt-1">No teachers available. Please add teachers first.</p>}
+                 {allTeachers.length === 0 && !isLoadingPrerequisites && <p className="text-xs text-muted-foreground mt-1">No teachers available. Please add teachers first.</p>}
               </div>
               <div>
                 <Label htmlFor="newAssignSubject">Subject</Label>
-                <Select value={newAssignmentSubjectId} onValueChange={setNewAssignmentSubjectId} disabled={allSubjects.length === 0 || isLoading}>
+                <Select value={newAssignmentSubjectId} onValueChange={setNewAssignmentSubjectId} disabled={allSubjects.length === 0 || isLoadingPrerequisites}>
                   <SelectTrigger id="newAssignSubject"><SelectValue placeholder="Select Subject" /></SelectTrigger>
                   <SelectContent>
                     {allSubjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name} ({s.code})</SelectItem>)}
                   </SelectContent>
                 </Select>
-                {allSubjects.length === 0 && !isLoading && <p className="text-xs text-muted-foreground mt-1">No subjects available. Please add subjects first.</p>}
+                {allSubjects.length === 0 && !isLoadingPrerequisites && <p className="text-xs text-muted-foreground mt-1">No subjects available. Please add subjects first.</p>}
               </div>
               <div>
                 <Label htmlFor="newAssignSemester">Semester</Label>
-                <Select value={newAssignmentSemesterId} onValueChange={setNewAssignmentSemesterId} disabled={allSemesters.length === 0 || isLoading}>
+                <Select value={newAssignmentSemesterId} onValueChange={setNewAssignmentSemesterId} disabled={allSemesters.length === 0 || isLoadingPrerequisites}>
                   <SelectTrigger id="newAssignSemester"><SelectValue placeholder="Select Semester" /></SelectTrigger>
                   <SelectContent>
                     {allSemesters.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                {allSemesters.length === 0 && !isLoading && <p className="text-xs text-muted-foreground mt-1">No semesters available. Please add semesters first.</p>}
+                {allSemesters.length === 0 && !isLoadingPrerequisites && <p className="text-xs text-muted-foreground mt-1">No semesters available. Please add semesters first.</p>}
               </div>
             </div>
             <DialogFooter>
               <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-              <Button onClick={handleAddAssignment} disabled={isSubmitting || isLoading || allTeachers.length === 0 || allSubjects.length === 0 || allSemesters.length === 0}>
+              <Button onClick={handleAddAssignment} disabled={isSubmitting || isLoadingPrerequisites || allTeachers.length === 0 || allSubjects.length === 0 || allSemesters.length === 0}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Create Assignment
               </Button>
@@ -341,7 +336,7 @@ export default function AssignSubjectsPage() {
             <div className="grid gap-4 py-4">
               <div>
                 <Label htmlFor="editAssignTeacher">Teacher</Label>
-                <Select value={editAssignmentTeacherUid} onValueChange={setEditAssignmentTeacherUid} disabled={allTeachers.length === 0 || isLoading}>
+                <Select value={editAssignmentTeacherUid} onValueChange={setEditAssignmentTeacherUid} disabled={allTeachers.length === 0 || isLoadingPrerequisites}>
                   <SelectTrigger id="editAssignTeacher"><SelectValue placeholder="Select Teacher" /></SelectTrigger>
                   <SelectContent>
                     {allTeachers.map(t => <SelectItem key={t.uid} value={t.uid}>{t.name}</SelectItem>)}
@@ -350,7 +345,7 @@ export default function AssignSubjectsPage() {
               </div>
               <div>
                 <Label htmlFor="editAssignSubject">Subject</Label>
-                <Select value={editAssignmentSubjectId} onValueChange={setEditAssignmentSubjectId} disabled={allSubjects.length === 0 || isLoading}>
+                <Select value={editAssignmentSubjectId} onValueChange={setEditAssignmentSubjectId} disabled={allSubjects.length === 0 || isLoadingPrerequisites}>
                   <SelectTrigger id="editAssignSubject"><SelectValue placeholder="Select Subject" /></SelectTrigger>
                   <SelectContent>
                     {allSubjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name} ({s.code})</SelectItem>)}
@@ -359,7 +354,7 @@ export default function AssignSubjectsPage() {
               </div>
               <div>
                 <Label htmlFor="editAssignSemester">Semester</Label>
-                <Select value={editAssignmentSemesterId} onValueChange={setEditAssignmentSemesterId} disabled={allSemesters.length === 0 || isLoading}>
+                <Select value={editAssignmentSemesterId} onValueChange={setEditAssignmentSemesterId} disabled={allSemesters.length === 0 || isLoadingPrerequisites}>
                   <SelectTrigger id="editAssignSemester"><SelectValue placeholder="Select Semester" /></SelectTrigger>
                   <SelectContent>
                     {allSemesters.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
@@ -370,7 +365,7 @@ export default function AssignSubjectsPage() {
           )}
           <DialogFooter>
             <DialogClose asChild><Button variant="outline" onClick={() => setEditingAssignment(null)}>Cancel</Button></DialogClose>
-            <Button onClick={handleUpdateAssignment} disabled={isUpdating || isLoading || !editingAssignment || allTeachers.length === 0 || allSubjects.length === 0 || allSemesters.length === 0}>
+            <Button onClick={handleUpdateAssignment} disabled={isUpdating || isLoadingPrerequisites || !editingAssignment || allTeachers.length === 0 || allSubjects.length === 0 || allSemesters.length === 0}>
               {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Update Assignment
             </Button>
@@ -385,7 +380,7 @@ export default function AssignSubjectsPage() {
           <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             <div className="md:col-span-1">
               <Label htmlFor="teacherFilter" className="text-sm font-medium">Filter by Teacher</Label>
-              <Select value={filterTeacher} onValueChange={setFilterTeacher} disabled={isLoading || allTeachers.length === 0}>
+              <Select value={filterTeacher} onValueChange={setFilterTeacher} disabled={isLoadingPrerequisites || allTeachers.length === 0}>
                 <SelectTrigger id="teacherFilter"><SelectValue placeholder="All Teachers" /></SelectTrigger>
                 <SelectContent>
                   {allTeachers.map(teacher => <SelectItem key={teacher.uid} value={teacher.uid}>{teacher.name}</SelectItem>)}
@@ -394,7 +389,7 @@ export default function AssignSubjectsPage() {
             </div>
             <div className="md:col-span-1">
              <Label htmlFor="subjectFilter" className="text-sm font-medium">Filter by Subject</Label>
-              <Select value={filterSubject} onValueChange={setFilterSubject} disabled={isLoading || allSubjects.length === 0}>
+              <Select value={filterSubject} onValueChange={setFilterSubject} disabled={isLoadingPrerequisites || allSubjects.length === 0}>
                 <SelectTrigger id="subjectFilter"><SelectValue placeholder="All Subjects" /></SelectTrigger>
                 <SelectContent>
                   {allSubjects.map(subject => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}
@@ -403,23 +398,23 @@ export default function AssignSubjectsPage() {
             </div>
             <div className="md:col-span-1">
             <Label htmlFor="semesterFilter" className="text-sm font-medium">Filter by Semester</Label>
-              <Select value={filterSemester} onValueChange={setFilterSemester} disabled={isLoading || allSemesters.length === 0}>
+              <Select value={filterSemester} onValueChange={setFilterSemester} disabled={isLoadingPrerequisites || allSemesters.length === 0}>
                 <SelectTrigger id="semesterFilter"><SelectValue placeholder="All Semesters" /></SelectTrigger>
                 <SelectContent>
                   {allSemesters.map(semester =><SelectItem key={semester.id} value={semester.id}>{semester.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            <Button variant="outline" className="md:col-span-1" onClick={() => {setFilterTeacher(""); setFilterSubject(""); setFilterSemester("")}} disabled={isLoadingAssignments || isLoading}>
+            <Button variant="outline" className="md:col-span-1" onClick={() => {setFilterTeacher(""); setFilterSubject(""); setFilterSemester("")}} disabled={isLoadingAssignments || isLoadingPrerequisites}>
                 <Filter className="mr-2 h-4 w-4" /> Clear Filters
             </Button>
           </div>
         </CardHeader>
         <CardContent>
-          {isLoadingAssignments || isLoading ? (
-            <div className="flex justify-center items-center h-60"> 
+          {isLoadingAssignments || isLoadingPrerequisites ? (
+            <div className="flex flex-col justify-center items-center h-60"> 
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                <p className="ml-3 text-lg">Loading assignments...</p>
+                <p className="ml-3 text-lg">{isLoadingPrerequisites ? "Loading prerequisites..." : "Loading assignments..."}</p>
             </div>
           ) : (
           <Table>
