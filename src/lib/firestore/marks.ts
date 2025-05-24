@@ -84,27 +84,30 @@ export async function upsertMarksBatch(marksToSave: Partial<Mark>[], teacherUid:
     else if (total >= 50) grade = 'D';
     else grade = 'F';
 
-    const markPayload: any = { // Use 'any' temporarily for serverTimestamp or ensure Mark type allows FieldValue
-      ...markEntry,
+    // Destructure id from markEntry, and keep the rest of the properties
+    const { id: markEntryId, ...restOfMarkEntry } = markEntry;
+
+    // This is the payload that will be written to Firestore.
+    // It excludes 'id' from markEntry.
+    const firestorePayload = { 
+      ...restOfMarkEntry,
       total,
       grade,
-      teacherUid, // Record who is saving/updating
-      lastUpdated: serverTimestamp(), // Use Firestore server timestamp
+      teacherUid, 
+      lastUpdated: serverTimestamp(),
     };
 
-    if (markEntry.id) { // Existing mark, update it
-      const markDocRef = doc(db, 'marks', markEntry.id);
-      // remove id from payload to avoid writing it into document fields
-      const { id, ...payloadWithoutId } = markPayload;
-      batch.update(markDocRef, payloadWithoutId);
+    if (markEntryId) { // Existing mark, update it
+      const markDocRef = doc(db, 'marks', markEntryId);
+      batch.update(markDocRef, firestorePayload);
     } else { // New mark, create it
-      const newMarkDocRef = doc(collection(db, 'marks')); // Auto-generate ID
+      const newMarkDocRef = doc(collection(db, 'marks')); // Auto-generate ID for the new document
       // studentUid, subjectId, semesterId MUST be present for a new mark
       if (!markEntry.studentUid || !markEntry.subjectId || !markEntry.semesterId) {
-          console.warn("Skipping mark due to missing identifiers:", markEntry);
+          console.warn("Skipping mark due to missing studentUid, subjectId, or semesterId:", markEntry);
           return; 
       }
-      batch.set(newMarkDocRef, markPayload);
+      batch.set(newMarkDocRef, firestorePayload);
     }
   });
 
