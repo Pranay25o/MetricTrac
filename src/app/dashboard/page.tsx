@@ -4,7 +4,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useAuth } from "@/contexts/auth-provider";
-import { BarChart, BookUser, GraduationCap, Users, NotebookPen, ClipboardEdit, Presentation, Building, Activity } from "lucide-react";
+import { BarChart, BookUser, GraduationCap, Users, NotebookPen, ClipboardEdit, Presentation, Building, Activity, Bell, Newspaper, UsersRound } from "lucide-react"; // Added Bell
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
@@ -67,24 +67,28 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent>
            <p className="text-muted-foreground">
-              Use the sidebar to navigate to different sections or use the quick links below for common tasks. 
-              MeritTrac is designed to streamline academic record management and provide valuable insights.
+              Navigate through MeritTrac using the sidebar or the quick actions below. This portal is designed to streamline academic record management and provide valuable insights for all users.
             </p>
         </CardContent>
       </Card>
 
       {quickLinks && quickLinks.length > 0 && (
         <div>
-          <h2 className="text-2xl font-semibold mb-4 text-foreground">Quick Actions</h2>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <h2 className="text-2xl font-semibold mb-6 text-foreground">Quick Actions</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
             {quickLinks.map(link => {
               const Icon = link.icon;
               return (
                 <Link href={link.href} key={link.href} passHref>
-                  <Card className={`shadow-lg hover:shadow-xl transition-shadow duration-300 ease-in-out transform hover:-translate-y-1 ${link.color} text-primary-foreground`}>
-                    <CardContent className="p-6 flex flex-col items-center justify-center text-center h-40">
-                      <Icon className="h-12 w-12 mb-3" />
-                      <span className="text-lg font-medium">{link.label}</span>
+                  <Card className={`shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:-translate-y-1.5 ${link.color} text-primary-foreground group`}>
+                    <CardHeader>
+                      <CardTitle className="text-xl flex items-center gap-3">
+                        <Icon className="h-7 w-7" /> 
+                        {link.label}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm opacity-90 group-hover:opacity-100 transition-opacity">Access the {link.label.toLowerCase()} section.</p>
                     </CardContent>
                   </Card>
                 </Link>
@@ -95,10 +99,10 @@ export default function DashboardPage() {
       )}
       
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-         <Card className="shadow-md">
+         <Card className="shadow-md hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Campus Updates</CardTitle>
-                <Building className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Campus News & Events</CardTitle>
+                <Newspaper className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
                 <Image 
@@ -106,30 +110,32 @@ export default function DashboardPage() {
                   alt="Campus Life" 
                   width={600} 
                   height={300} 
-                  className="rounded-lg object-cover w-full"
-                  data-ai-hint="university campus" 
+                  className="rounded-lg object-cover w-full mb-2"
+                  data-ai-hint="university students" 
                 />
-                <p className="text-xs text-muted-foreground mt-2">Latest news and events from around the campus.</p>
+                <p className="text-xs text-muted-foreground">Stay updated with the latest happenings and upcoming events on campus.</p>
+                <Button variant="link" className="px-0 text-xs h-auto mt-1">Read More</Button>
             </CardContent>
         </Card>
-        <Card className="shadow-md">
+        <Card className="shadow-md hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">System Activity</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">User Statistics</CardTitle>
+            <UsersRound className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <Image 
                 src="https://placehold.co/600x300.png" 
-                alt="System Analytics" 
+                alt="User Analytics" 
                 width={600} 
                 height={300} 
-                className="rounded-lg object-cover w-full"
-                data-ai-hint="data analytics" 
+                className="rounded-lg object-cover w-full mb-2"
+                data-ai-hint="user data chart" 
             />
-            <p className="text-xs text-muted-foreground mt-2">An overview of recent system interactions.</p>
+             <p className="text-xs text-muted-foreground">Overview of active users and system engagement metrics.</p>
+             <Button variant="link" className="px-0 text-xs h-auto mt-1">View Details</Button>
           </CardContent>
         </Card>
-        <Card className="shadow-md">
+        <Card className="shadow-md hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Notifications</CardTitle>
              <Bell className="h-4 w-4 text-muted-foreground" />
@@ -143,4 +149,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
