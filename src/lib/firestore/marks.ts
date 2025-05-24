@@ -84,12 +84,12 @@ export async function upsertMarksBatch(marksToSave: Partial<Mark>[], teacherUid:
     else if (total >= 50) grade = 'D';
     else grade = 'F';
 
-    const markPayload: Partial<Mark> = {
+    const markPayload: any = { // Use 'any' temporarily for serverTimestamp or ensure Mark type allows FieldValue
       ...markEntry,
       total,
       grade,
       teacherUid, // Record who is saving/updating
-      lastUpdated: Timestamp.now().toDate().toISOString(), // Use client-side timestamp for batch consistency or serverTimestamp() if individual docs
+      lastUpdated: serverTimestamp(), // Use Firestore server timestamp
     };
 
     if (markEntry.id) { // Existing mark, update it
@@ -116,3 +116,4 @@ export async function deleteMark(id: string): Promise<void> {
   const markDoc = doc(db, 'marks', id);
   await deleteDoc(markDoc);
 }
+
