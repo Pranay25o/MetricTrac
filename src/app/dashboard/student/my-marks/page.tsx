@@ -5,6 +5,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Label } from "@/components/ui/label"; // Added import
 import { useAuth } from "@/contexts/auth-provider";
 import { getMarksByStudent } from "@/lib/firestore/marks";
 import { getSemesters } from "@/lib/firestore/semesters"; // To get all semester names for filtering
