@@ -47,13 +47,15 @@ export default function ManageSubjectsPage() {
   }, [user, authLoading, router]);
 
   const fetchSubjects = useCallback(async () => {
+    console.log("ManageSubjectsPage: fetchSubjects triggered");
     setIsLoading(true);
     try {
       const fetchedSubjects = await getSubjects();
       setSubjects(fetchedSubjects);
+      console.log("ManageSubjectsPage: Fetched subjects:", fetchedSubjects.length);
     } catch (error) {
       console.error("Error fetching subjects:", error);
-      toast({ title: "Error", description: "Could not fetch subjects.", variant: "destructive" });
+      toast({ title: "Error", description: "Could not fetch subjects. Check Firestore rules or index status.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -70,6 +72,7 @@ export default function ManageSubjectsPage() {
       toast({ title: "Validation Error", description: "Subject Name and Code are required.", variant: "destructive" });
       return;
     }
+    console.log("ManageSubjectsPage: Adding subject:", { name: newSubjectName, code: newSubjectCode });
     setIsSubmitting(true);
     try {
       await addSubject({ name: newSubjectName, code: newSubjectCode });
@@ -87,6 +90,7 @@ export default function ManageSubjectsPage() {
   };
 
   const openEditDialog = (subject: Subject) => {
+    console.log("ManageSubjectsPage: Opening edit dialog for subject:", subject);
     setEditingSubject(subject);
     setEditSubjectName(subject.name);
     setEditSubjectCode(subject.code);
@@ -98,6 +102,7 @@ export default function ManageSubjectsPage() {
       toast({ title: "Validation Error", description: "Subject Name and Code are required for update.", variant: "destructive" });
       return;
     }
+    console.log("ManageSubjectsPage: Updating subject ID:", editingSubject.id);
     setIsUpdating(true);
     try {
       await updateSubject(editingSubject.id, { name: editSubjectName, code: editSubjectCode });
@@ -114,7 +119,11 @@ export default function ManageSubjectsPage() {
   };
 
   const handleDeleteSubject = async (subjectId: string) => {
-     if (!window.confirm("Are you sure you want to delete this subject? This action cannot be undone.")) return;
+    console.log("ManageSubjectsPage: Attempting to delete subject:", subjectId);
+     if (!window.confirm("Are you sure you want to delete this subject? This action cannot be undone.")) {
+        console.log("ManageSubjectsPage: Deletion cancelled for subject:", subjectId);
+        return;
+     }
     try {
       await deleteSubjectFromDb(subjectId);
       toast({ title: "Success", description: "Subject deleted successfully." });
@@ -178,7 +187,6 @@ export default function ManageSubjectsPage() {
         </Dialog>
       </div>
 
-      {/* Edit Subject Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {
         setIsEditDialogOpen(isOpen);
         if (!isOpen) setEditingSubject(null);
@@ -201,7 +209,7 @@ export default function ManageSubjectsPage() {
             </div>
           )}
           <DialogFooter>
-            <DialogClose asChild><Button variant="outline" onClick={() => setEditingSubject(null)}>Cancel</Button></DialogClose>
+            <DialogClose asChild><Button variant="outline" onClick={() => {setIsEditDialogOpen(false); setEditingSubject(null);}}>Cancel</Button></DialogClose>
             <Button onClick={handleUpdateSubject} disabled={isUpdating || !editingSubject}>
               {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Update Subject
@@ -213,7 +221,7 @@ export default function ManageSubjectsPage() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Subject List</CardTitle>
-          <CardDescription>All available subjects in the system.</CardDescription>
+          <CardDescription>All available subjects in the system. Create Firestore index on 'name (asc)' if initial load fails.</CardDescription>
            <div className="relative mt-4">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
@@ -267,7 +275,7 @@ export default function ManageSubjectsPage() {
               )) : (
                 <TableRow>
                   <TableCell colSpan={3} className="text-center h-24">
-                    No subjects found. {subjects.length === 0 && !searchTerm ? "Try adding a new subject." : "Clear search or add a subject."}
+                    {subjects.length === 0 && !searchTerm ? "No subjects found. Try adding a new subject." : "No subjects match your search. Clear search or add a subject."}
                   </TableCell>
                 </TableRow>
               )}

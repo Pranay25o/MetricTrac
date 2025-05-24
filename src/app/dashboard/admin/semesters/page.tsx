@@ -52,13 +52,15 @@ export default function ManageSemestersPage() {
   }, [user, authLoading, router]);
 
   const fetchSemesters = useCallback(async () => {
+    console.log("ManageSemestersPage: fetchSemesters triggered");
     setIsLoading(true);
     try {
       const fetchedSemesters = await getSemesters();
       setSemesters(fetchedSemesters);
+      console.log("ManageSemestersPage: Fetched semesters:", fetchedSemesters.length);
     } catch (error) {
       console.error("Error fetching semesters:", error);
-      toast({ title: "Error", description: "Could not fetch semesters.", variant: "destructive" });
+      toast({ title: "Error", description: "Could not fetch semesters. Check Firestore rules or index status.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -76,13 +78,14 @@ export default function ManageSemestersPage() {
       toast({ title: "Validation Error", description: "Semester Name and Year are required.", variant: "destructive" });
       return;
     }
+    console.log("ManageSemestersPage: Adding semester:", { name: newSemesterName, year: newSemesterYear });
     setIsSubmitting(true);
     try {
       await addSemester({ 
         name: newSemesterName, 
         year: newSemesterYear,
-        startDate: newSemesterStartDate || undefined,
-        endDate: newSemesterEndDate || undefined,
+        startDate: newSemesterStartDate || undefined, // Store as undefined if empty
+        endDate: newSemesterEndDate || undefined,   // Store as undefined if empty
       });
       toast({ title: "Success", description: "Semester added successfully." });
       setNewSemesterName("");
@@ -100,11 +103,12 @@ export default function ManageSemestersPage() {
   };
 
   const openEditDialog = (semester: Semester) => {
+    console.log("ManageSemestersPage: Opening edit dialog for semester:", semester);
     setEditingSemester(semester);
     setEditSemesterName(semester.name);
     setEditSemesterYear(semester.year);
-    setEditSemesterStartDate(semester.startDate || "");
-    setEditSemesterEndDate(semester.endDate || "");
+    setEditSemesterStartDate(formatDateForInput(semester.startDate));
+    setEditSemesterEndDate(formatDateForInput(semester.endDate));
     setIsEditDialogOpen(true);
   };
 
@@ -113,6 +117,7 @@ export default function ManageSemestersPage() {
         toast({ title: "Validation Error", description: "Semester Name and Year are required for update.", variant: "destructive" });
         return;
     }
+    console.log("ManageSemestersPage: Updating semester ID:", editingSemester.id);
     setIsUpdating(true);
     try {
         await updateSemester(editingSemester.id, {
@@ -134,14 +139,18 @@ export default function ManageSemestersPage() {
   };
 
   const handleDeleteSemester = async (semesterId: string) => {
-    if (!window.confirm("Are you sure you want to delete this semester? This action cannot be undone.")) return;
+    console.log("ManageSemestersPage: Attempting to delete semester:", semesterId);
+    if (!window.confirm("Are you sure you want to delete this semester? This action cannot be undone.")) {
+        console.log("ManageSemestersPage: Deletion cancelled for semester:", semesterId);
+        return;
+    }
     try {
       await deleteSemesterFromDb(semesterId);
       toast({ title: "Success", description: "Semester deleted successfully." });
       fetchSemesters(); 
     } catch (error) {
       console.error("Error deleting semester:", error);
-      toast({ title: "Error", description: "Could not delete semester. It might be in use.", variant: "destructive" });
+      toast({ title: "Error", description: "Could not delete semester. It might be in use or there was a server error.", variant: "destructive" });
     }
   };
   
@@ -152,12 +161,10 @@ export default function ManageSemestersPage() {
 
   const formatDateForDisplay = (dateString?: string) => {
     if (!dateString) return "N/A";
-    // Attempt to parse as ISO and then format, if fails, it might already be in a different but valid format for Date constructor
     const dateObj = parseISO(dateString);
     if (isValid(dateObj)) {
         return format(dateObj, "MMM dd, yyyy");
     }
-    // Fallback for dates not in ISO string format but still valid for new Date()
     const directDateObj = new Date(dateString);
     if (isValid(directDateObj)) {
         return format(directDateObj, "MMM dd, yyyy");
@@ -167,15 +174,17 @@ export default function ManageSemestersPage() {
 
   const formatDateForInput = (dateString?: string) => {
     if (!dateString) return "";
-    const dateObj = parseISO(dateString);
-     if (isValid(dateObj)) {
-        return format(dateObj, "yyyy-MM-dd");
+    // Try parsing as ISO first, which is Firestore's Timestamp.toDate().toISOString() format
+    const isoDate = parseISO(dateString);
+    if (isValid(isoDate)) {
+      return format(isoDate, "yyyy-MM-dd");
     }
-    const directDateObj = new Date(dateString);
-    if (isValid(directDateObj)) {
-        return format(directDateObj, "yyyy-MM-dd");
+    // Fallback for other valid date string formats that `new Date()` might parse
+    const directDate = new Date(dateString);
+     if (isValid(directDate)) {
+      return format(directDate, "yyyy-MM-dd");
     }
-    return ""; // Return empty if not valid, or the original string if needed
+    return ""; 
   };
 
 
@@ -192,7 +201,7 @@ export default function ManageSemestersPage() {
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={(isOpen) => {
             setIsAddDialogOpen(isOpen);
-            if (!isOpen) { // Reset form on close
+            if (!isOpen) { 
                 setNewSemesterName("");
                 setNewSemesterYear(new Date().getFullYear());
                 setNewSemesterStartDate("");
@@ -237,7 +246,6 @@ export default function ManageSemestersPage() {
         </Dialog>
       </div>
 
-      {/* Edit Semester Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {
         setIsEditDialogOpen(isOpen);
         if (!isOpen) setEditingSemester(null);
@@ -259,16 +267,16 @@ export default function ManageSemestersPage() {
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="semesterStartDateEdit" className="text-right">Start Date</Label>
-                <Input id="semesterStartDateEdit" type="date" value={formatDateForInput(editSemesterStartDate)} onChange={(e) => setEditSemesterStartDate(e.target.value)} className="col-span-3" />
+                <Input id="semesterStartDateEdit" type="date" value={editSemesterStartDate} onChange={(e) => setEditSemesterStartDate(e.target.value)} className="col-span-3" />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="semesterEndDateEdit" className="text-right">End Date</Label>
-                <Input id="semesterEndDateEdit" type="date" value={formatDateForInput(editSemesterEndDate)} onChange={(e) => setEditSemesterEndDate(e.target.value)} className="col-span-3" />
+                <Input id="semesterEndDateEdit" type="date" value={editSemesterEndDate} onChange={(e) => setEditSemesterEndDate(e.target.value)} className="col-span-3" />
               </div>
             </div>
           )}
           <DialogFooter>
-            <DialogClose asChild><Button variant="outline" onClick={() => setEditingSemester(null)}>Cancel</Button></DialogClose>
+            <DialogClose asChild><Button variant="outline" onClick={() => {setIsEditDialogOpen(false); setEditingSemester(null);}}>Cancel</Button></DialogClose>
             <Button onClick={handleUpdateSemester} disabled={isUpdating || !editingSemester}>
               {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Update Semester
@@ -281,7 +289,7 @@ export default function ManageSemestersPage() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Semester List</CardTitle>
-          <CardDescription>All academic semesters in the system.</CardDescription>
+          <CardDescription>All academic semesters in the system. Create Firestore index on 'year (desc), name (asc)' if initial load fails.</CardDescription>
            <div className="relative mt-4">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
@@ -342,7 +350,7 @@ export default function ManageSemestersPage() {
               )) : (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center h-24">
-                    No semesters found. {semesters.length === 0 && !searchTerm ? "Try adding a new semester." : "Clear search or add a semester."}
+                    {semesters.length === 0 && !searchTerm ? "No semesters found. Try adding a new semester." : "No semesters match your search. Clear search or add a semester."}
                   </TableCell>
                 </TableRow>
               )}

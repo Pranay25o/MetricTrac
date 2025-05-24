@@ -29,10 +29,10 @@ export default function ManageMarksPage() {
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>("");
   
   const [teacherAssignments, setTeacherAssignments] = useState<TeacherSubjectAssignment[]>([]);
-  const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
-  const [allSemesters, setAllSemesters] = useState<Semester[]>([]);
-  const [studentsForSubject, setStudentsForSubject] = useState<UserProfile[]>([]); // Students enrolled in the selected subject/semester (mocked for now)
-  const [studentMarks, setStudentMarks] = useState<Partial<Mark>[]>([]);
+  const [allSystemSubjects, setAllSystemSubjects] = useState<Subject[]>([]); // All subjects in the system
+  const [allSystemSemesters, setAllSystemSemesters] = useState<Semester[]>([]); // All semesters in the system
+  const [allStudents, setAllStudents] = useState<UserProfile[]>([]); // All student profiles
+  const [studentMarks, setStudentMarks] = useState<Partial<Mark>[]>([]); // Marks for current selection
 
   const [isLoadingPrerequisites, setIsLoadingPrerequisites] = useState(true);
   const [isLoadingStudentsAndMarks, setIsLoadingStudentsAndMarks] = useState(false);
@@ -48,17 +48,19 @@ export default function ManageMarksPage() {
     if (!user) return;
     setIsLoadingPrerequisites(true);
     try {
-      const [assignments, subjects, semesters] = await Promise.all([
+      const [assignments, subjects, semesters, students] = await Promise.all([
         getAssignmentsByTeacher(user.uid),
-        getSubjects(), // Fetch all subjects initially
-        getSemesters(), // Fetch all semesters initially
+        getSubjects(), 
+        getSemesters(),
+        getUsers("student"), // Fetch all students
       ]);
       setTeacherAssignments(assignments);
-      setAllSubjects(subjects);
-      setAllSemesters(semesters);
+      setAllSystemSubjects(subjects);
+      setAllSystemSemesters(semesters);
+      setAllStudents(students);
     } catch (error) {
       console.error("Error fetching prerequisites:", error);
-      toast({ title: "Error", description: "Could not load your assignments, subjects, or semesters.", variant: "destructive" });
+      toast({ title: "Error", description: "Could not load your assignments, subjects, semesters or student list.", variant: "destructive" });
     } finally {
       setIsLoadingPrerequisites(false);
     }
@@ -72,8 +74,8 @@ export default function ManageMarksPage() {
 
   const availableSemestersForTeacher = useMemo(() => {
     const semesterIds = new Set(teacherAssignments.map(ta => ta.semesterId));
-    return allSemesters.filter(s => semesterIds.has(s.id));
-  }, [teacherAssignments, allSemesters]);
+    return allSystemSemesters.filter(s => semesterIds.has(s.id));
+  }, [teacherAssignments, allSystemSemesters]);
 
   const availableSubjectsForTeacherInSemester = useMemo(() => {
     if (!selectedSemesterId) return [];
@@ -82,37 +84,31 @@ export default function ManageMarksPage() {
         .filter(ta => ta.semesterId === selectedSemesterId)
         .map(ta => ta.subjectId)
     );
-    return allSubjects.filter(s => subjectIds.has(s.id));
-  }, [teacherAssignments, allSubjects, selectedSemesterId]);
+    return allSystemSubjects.filter(s => subjectIds.has(s.id));
+  }, [teacherAssignments, allSystemSubjects, selectedSemesterId]);
 
   const fetchStudentsAndMarksForSelection = useCallback(async () => {
-    if (!user || !selectedSemesterId || !selectedSubjectId) {
-      setStudentsForSubject([]);
+    if (!user || !selectedSemesterId || !selectedSubjectId || allStudents.length === 0) {
       setStudentMarks([]);
       return;
     }
     setIsLoadingStudentsAndMarks(true);
     try {
-      // For now, assume all students could be in any subject.
-      // A real system might have student-subject enrollments.
-      // We'll fetch all students and then filter/match their marks.
-      const allStudents = await getUsers("student"); 
-      setStudentsForSubject(allStudents); // Store all students to pick from
-
       const existingMarks = await getMarks({ subjectId: selectedSubjectId, semesterId: selectedSemesterId });
       
+      const subjectDetails = allSystemSubjects.find(s => s.id === selectedSubjectId);
+      const semesterDetails = allSystemSemesters.find(s => s.id === selectedSemesterId);
+
       const marksForDisplay: Partial<Mark>[] = allStudents.map(student => {
         const mark = existingMarks.find(m => m.studentUid === student.uid);
-        const subject = allSubjects.find(s => s.id === selectedSubjectId);
-        const semester = allSemesters.find(s => s.id === selectedSemesterId);
         return {
-          id: mark?.id, // Important for updates
+          id: mark?.id, 
           studentUid: student.uid,
-          studentName: student.name,
+          studentName: student.name, // Sourced from allStudents
           subjectId: selectedSubjectId,
-          subjectName: subject?.name,
+          subjectName: subjectDetails?.name || "Unknown Subject", // Sourced from allSystemSubjects
           semesterId: selectedSemesterId,
-          semesterName: semester?.name,
+          semesterName: semesterDetails?.name || "Unknown Semester", // Sourced from allSystemSemesters
           ca1: mark?.ca1,
           ca2: mark?.ca2,
           midTerm: mark?.midTerm,
@@ -125,17 +121,20 @@ export default function ManageMarksPage() {
 
     } catch (error) {
       console.error("Error fetching students or marks:", error);
-      toast({ title: "Error", description: "Could not load student data or marks for this selection.", variant: "destructive" });
-      setStudentsForSubject([]);
+      toast({ title: "Error", description: "Could not load student data or marks for this selection. Check Firestore indexes.", variant: "destructive" });
       setStudentMarks([]);
     } finally {
       setIsLoadingStudentsAndMarks(false);
     }
-  }, [user, selectedSemesterId, selectedSubjectId, toast, allSubjects, allSemesters]);
+  }, [user, selectedSemesterId, selectedSubjectId, toast, allStudents, allSystemSubjects, allSystemSemesters]);
 
   useEffect(() => {
-    fetchStudentsAndMarksForSelection();
-  }, [fetchStudentsAndMarksForSelection]);
+    if (selectedSemesterId && selectedSubjectId && allStudents.length > 0) {
+        fetchStudentsAndMarksForSelection();
+    } else {
+        setStudentMarks([]); // Clear marks if selection is incomplete
+    }
+  }, [selectedSemesterId, selectedSubjectId, allStudents, fetchStudentsAndMarksForSelection]);
 
 
   const handleMarkChange = (studentUid: string, field: keyof Mark, value: string) => {
@@ -151,7 +150,7 @@ export default function ManageMarksPage() {
       prevMarks.map(mark => {
         if (mark.studentUid === studentUid) {
           const updatedMark = { ...mark, [field]: numericValue };
-          // Recalculate total and grade
+          
           const ca1 = updatedMark.ca1 ?? 0;
           const ca2 = updatedMark.ca2 ?? 0;
           const midTerm = updatedMark.midTerm ?? 0;
@@ -177,13 +176,14 @@ export default function ManageMarksPage() {
   };
   
   const handleSaveChanges = async () => {
-    if (!user) return;
+    if (!user || !selectedSubjectId || !selectedSemesterId) {
+        toast({ title: "Cannot Save", description: "Subject or Semester not selected.", variant: "destructive" });
+        return;
+    }
     setIsSaving(true);
     try {
-      // Filter out marks that haven't been touched (all assessment fields are undefined)
-      // unless they already have an ID (meaning they existed before and might be cleared)
       const marksToSave = studentMarks.filter(mark => 
-        mark.id || // if it has an id, it's an existing mark we might be updating (even to clear it)
+        mark.id || 
         mark.ca1 !== undefined || 
         mark.ca2 !== undefined || 
         mark.midTerm !== undefined || 
@@ -192,11 +192,25 @@ export default function ManageMarksPage() {
 
       if (marksToSave.length === 0) {
         toast({ title: "No Changes", description: "No marks were entered or modified." });
+        setIsSaving(false);
         return;
       }
-      await upsertMarksBatch(marksToSave, user.uid);
+      
+      // Ensure denormalized names are current before saving
+      const subjectDetails = allSystemSubjects.find(s => s.id === selectedSubjectId);
+      const semesterDetails = allSystemSemesters.find(s => s.id === selectedSemesterId);
+
+      const finalMarksToSave = marksToSave.map(m => ({
+          ...m,
+          subjectName: subjectDetails?.name || m.subjectName || "Unknown Subject",
+          semesterName: semesterDetails?.name || m.semesterName || "Unknown Semester",
+          // studentName is already populated from allStudents
+      }));
+
+
+      await upsertMarksBatch(finalMarksToSave, user.uid);
       toast({ title: "Success", description: "Marks saved successfully." });
-      fetchStudentsAndMarksForSelection(); // Refresh marks
+      fetchStudentsAndMarksForSelection(); 
     } catch (error) {
       console.error("Error saving marks:", error);
       toast({ title: "Error", description: "Could not save marks.", variant: "destructive" });
@@ -209,8 +223,8 @@ export default function ManageMarksPage() {
      return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /><p className="ml-2">Loading or unauthorized...</p></div>;
   }
 
-  const selectedSubjectName = allSubjects.find(s => s.id === selectedSubjectId)?.name;
-  const selectedSemesterName = allSemesters.find(s => s.id === selectedSemesterId)?.name;
+  const selectedSubjectName = allSystemSubjects.find(s => s.id === selectedSubjectId)?.name;
+  const selectedSemesterName = allSystemSemesters.find(s => s.id === selectedSemesterId)?.name;
 
 
   return (
@@ -231,7 +245,7 @@ export default function ManageMarksPage() {
                   <SelectTrigger id="semesterSelect"><SelectValue placeholder="Select Semester" /></SelectTrigger>
                   <SelectContent>
                     {availableSemestersForTeacher.map(semester => (
-                      <SelectItem key={semester.id} value={semester.id}>{semester.name}</SelectItem>
+                      <SelectItem key={semester.id} value={semester.id}>{semester.name} ({semester.year})</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -242,15 +256,16 @@ export default function ManageMarksPage() {
                   <SelectTrigger id="subjectSelect"><SelectValue placeholder="Select Subject" /></SelectTrigger>
                   <SelectContent>
                     {availableSubjectsForTeacherInSemester.map(subject => (
-                      <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>
+                      <SelectItem key={subject.id} value={subject.id}>{subject.name} ({subject.code})</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                 {selectedSemesterId && availableSubjectsForTeacherInSemester.length === 0 && <p className="text-xs text-muted-foreground mt-1">No subjects assigned to you for this semester.</p>}
               </div>
               <Button 
                   variant="outline" 
                   className="self-end" 
-                  onClick={() => { setSelectedSemesterId(""); setSelectedSubjectId(""); }}
+                  onClick={() => { setSelectedSemesterId(""); setSelectedSubjectId(""); setStudentMarks([]); }}
                   disabled={!selectedSemesterId && !selectedSubjectId}
                 >
                   <Filter className="mr-2 h-4 w-4" /> Clear Selection
@@ -270,7 +285,7 @@ export default function ManageMarksPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Student Name</TableHead>
+                      <TableHead>Student Name (PRN)</TableHead>
                       <TableHead className="w-[100px]">CA1 (10)</TableHead>
                       <TableHead className="w-[100px]">CA2 (10)</TableHead>
                       <TableHead className="w-[120px]">MidTerm (20)</TableHead>
@@ -280,9 +295,11 @@ export default function ManageMarksPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {studentMarks.length > 0 ? studentMarks.map(mark => (
+                    {studentMarks.length > 0 ? studentMarks.map(mark => {
+                      const student = allStudents.find(s => s.uid === mark.studentUid);
+                      return (
                       <TableRow key={mark.studentUid}>
-                        <TableCell className="font-medium">{mark.studentName}</TableCell>
+                        <TableCell className="font-medium">{mark.studentName} ({student?.prn || 'N/A'})</TableCell>
                         <TableCell>
                           <Input type="number" min="0" max="10" value={mark.ca1 ?? ""} onChange={e => handleMarkChange(mark.studentUid!, 'ca1', e.target.value)} className="h-8 text-sm"/>
                         </TableCell>
@@ -298,10 +315,11 @@ export default function ManageMarksPage() {
                         <TableCell className="text-sm">{mark.total ?? '-'}</TableCell>
                         <TableCell className="text-sm">{mark.grade ?? '-'}</TableCell>
                       </TableRow>
-                    )) : (
+                      );
+                    }) : (
                       <TableRow>
                         <TableCell colSpan={7} className="text-center h-24">
-                          No students found for this subject/semester, or all students loaded.
+                          {allStudents.length === 0 ? "No students found in the system." : "No students to display for marks entry, or all students loaded. Ensure students are registered."}
                         </TableCell>
                       </TableRow>
                     )}
@@ -321,6 +339,9 @@ export default function ManageMarksPage() {
           )}
           {!selectedSemesterId && !selectedSubjectId && !isLoadingPrerequisites && (
              <p className="text-center text-muted-foreground mt-8">Please select a semester and subject to manage marks.</p>
+          )}
+           {isLoadingPrerequisites && (
+             <p className="text-center text-muted-foreground mt-8">Loading initial data, please wait...</p>
           )}
         </CardContent>
       </Card>
