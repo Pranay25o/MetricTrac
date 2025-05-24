@@ -8,49 +8,62 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/contexts/auth-provider";
-import { mockStudents } from "@/lib/mock-data"; // Will be replaced with Firestore data
+import { getUsers } from "@/lib/firestore/users";
 import type { UserProfile } from "@/lib/types";
-import { MoreHorizontal, PlusCircle, Search, FileDown, Edit2, Trash2, Eye } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Search, FileDown, Edit2, Trash2, Eye, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-
-// TODO: Replace mockStudents with actual data fetching from Firestore
-// import { collection, getDocs, query, where } from "firebase/firestore";
-// import { db } from "@/lib/firebase";
+import { useEffect, useState, useMemo } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function ManageStudentsPage() {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
+
+  const [students, setStudents] = useState<UserProfile[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [students, setStudents] = useState<UserProfile[]>(mockStudents); // Initially use mock, then Firestore
 
   useEffect(() => {
-    if (!loading && (!user || user.role !== "admin")) {
+    if (!authLoading && (!user || user.role !== "admin")) {
       router.push("/dashboard");
     }
-    // TODO: Fetch actual student data from Firestore
-    // const fetchStudents = async () => {
-    //   if (user && user.role === 'admin') {
-    //     const q = query(collection(db, "users"), where("role", "==", "student"));
-    //     const querySnapshot = await getDocs(q);
-    //     const studentList = querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
-    //     setStudents(studentList);
-    //   }
-    // };
-    // fetchStudents();
-  }, [user, loading, router]);
+  }, [user, authLoading, router]);
+
+  const fetchStudents = async () => {
+    setIsLoading(true);
+    try {
+      const fetchedStudents = await getUsers("student");
+      setStudents(fetchedStudents);
+    } catch (error) {
+      console.error("Error fetching students:", error);
+      toast({ title: "Error", description: "Could not fetch student records.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  useEffect(() => {
+    if (user && user.role === 'admin') {
+      fetchStudents();
+    }
+  }, [user]);
 
 
-  if (loading || !user || user.role !== "admin") {
-    return <p>Loading or unauthorized...</p>;
+  if (authLoading || !user || user.role !== "admin") {
+    return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /><p className="ml-2">Loading or unauthorized...</p></div>;
   }
   
-  const filteredStudents = students.filter(student => 
+  const filteredStudents = useMemo(() => students.filter(student => 
     student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (student.prn && student.prn.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  ), [students, searchTerm]);
+
+  // TODO: Implement Add Student Dialog (likely involves creating Firebase Auth user then profile in Firestore)
+  // TODO: Implement Edit Student Dialog
+  // TODO: Implement Delete Student (delete from Auth and Firestore)
 
   return (
     <div className="space-y-6">
@@ -60,10 +73,10 @@ export default function ManageStudentsPage() {
           <p className="text-muted-foreground">View, add, edit, or delete student records.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => console.log("Export students") /* TODO */}>
             <FileDown className="mr-2 h-4 w-4" /> Export
           </Button>
-          <Button>
+          <Button onClick={() => console.log("Add student clicked") /* TODO: Open Add Student Dialog */}>
             <PlusCircle className="mr-2 h-4 w-4" /> Add Student
           </Button>
         </div>
@@ -84,6 +97,12 @@ export default function ManageStudentsPage() {
           </div>
         </CardHeader>
         <CardContent>
+          {isLoading ? (
+            <div className="flex justify-center items-center h-24">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="ml-2">Loading students...</p>
+            </div>
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -99,7 +118,7 @@ export default function ManageStudentsPage() {
                 <TableRow key={student.uid}>
                   <TableCell>
                     <Image 
-                      src={student.avatarUrl || "https://placehold.co/40x40.png"} 
+                      src={student.avatarUrl || `https://placehold.co/40x40.png`} 
                       alt={student.name} 
                       width={40} 
                       height={40} 
@@ -109,7 +128,7 @@ export default function ManageStudentsPage() {
                   </TableCell>
                   <TableCell className="font-medium">{student.name}</TableCell>
                   <TableCell>{student.email}</TableCell>
-                  <TableCell>{student.prn}</TableCell>
+                  <TableCell>{student.prn || "N/A"}</TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -120,14 +139,14 @@ export default function ManageStudentsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => router.push(`/dashboard/student/${student.uid}/performance-analysis`)}>
                           <Eye className="mr-2 h-4 w-4" /> View Details
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => console.log("Edit student:", student.uid) /* TODO */}>
                           <Edit2 className="mr-2 h-4 w-4" /> Edit Student
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive">
+                        <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => console.log("Delete student:", student.uid) /* TODO */}>
                           <Trash2 className="mr-2 h-4 w-4" /> Delete Student
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -137,12 +156,13 @@ export default function ManageStudentsPage() {
               )) : (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center h-24">
-                    No students found.
+                    No students found. {students.length === 0 && !searchTerm ? "No students registered yet." : ""}
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
     </div>

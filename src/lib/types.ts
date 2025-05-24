@@ -2,7 +2,7 @@
 export type Role = 'admin' | 'teacher' | 'student';
 
 export interface UserProfile {
-  uid: string; // Changed from id to uid to match Firebase Auth
+  uid: string; 
   email: string;
   name: string;
   role: Role;
@@ -11,45 +11,46 @@ export interface UserProfile {
 }
 
 export interface Subject {
-  id: string;
+  id: string; // Will be document ID in Firestore
   name: string;
   code: string;
+  // teacherUids?: string[]; // Future: if multiple teachers can teach a subject directly
 }
 
 export interface Semester {
-  id: string;
-  name: string; // e.g., "Semester 1", "Semester 2"
+  id: string; // Will be document ID in Firestore
+  name: string; 
   year: number;
   startDate?: string; // ISO date string
   endDate?: string; // ISO date string
 }
 
 export interface Mark {
-  id: string; 
-  studentUid: string; // Changed from studentId to studentUid
-  studentName?: string; // For easier display
+  id: string; // Will be document ID in Firestore
+  studentUid: string; 
+  studentName?: string; // Denormalized for easier display
   subjectId: string;
-  subjectName?: string; // For easier display
+  subjectName?: string; // Denormalized for easier display
   semesterId: string;
-  semesterName?: string; // For easier display
-  ca1?: number; // out of 10
-  ca2?: number; // out of 10
-  midTerm?: number; // out of 20
-  endTerm?: number; // out of 60
-  total?: number; // Calculated: ca1 + ca2 + midTerm + endTerm (out of 100)
-  grade?: string; // Calculated based on total
-  teacherUid?: string; // Changed from teacherId to teacherUid
-  lastUpdated?: string; // ISO date string
+  semesterName?: string; // Denormalized for easier display
+  ca1?: number; 
+  ca2?: number; 
+  midTerm?: number;
+  endTerm?: number;
+  total?: number; 
+  grade?: string; 
+  teacherUid?: string; // UID of the teacher who entered/last updated the mark
+  lastUpdated: string; // ISO date string
 }
 
 export interface TeacherSubjectAssignment {
-  id: string;
-  teacherUid: string; // Changed from teacherId to teacherUid
-  teacherName?: string;
+  id: string; // Will be document ID in Firestore
+  teacherUid: string; 
+  teacherName?: string; // Denormalized
   subjectId: string;
-  subjectName?: string;
+  subjectName?: string; // Denormalized
   semesterId: string;
-  semesterName?: string;
+  semesterName?: string; // Denormalized
 }
 
 // For Performance Insights GenAI feature

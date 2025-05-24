@@ -8,55 +8,71 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/contexts/auth-provider";
-import { mockTeachers, mockTeacherAssignments } from "@/lib/mock-data"; // Will be replaced
+import { getUsers } from "@/lib/firestore/users";
+import { getAssignmentsByTeacher } from "@/lib/firestore/teacherAssignments"; 
 import type { UserProfile } from "@/lib/types";
-import { MoreHorizontal, PlusCircle, Search, FileDown, Edit2, Trash2, Eye, BookOpen } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Search, FileDown, Edit2, Trash2, Eye, BookOpen, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
-
-// TODO: Replace mockTeachers with actual data fetching from Firestore
-// import { collection, getDocs, query, where } from "firebase/firestore";
-// import { db } from "@/lib/firebase";
+import { useToast } from "@/hooks/use-toast";
 
 export default function ManageTeachersPage() {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
+
+  const [teachers, setTeachers] = useState<UserProfile[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [teachers, setTeachers] = useState<UserProfile[]>(mockTeachers); // Initially use mock
+  const [assignedCounts, setAssignedCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    if (!loading && (!user || user.role !== "admin")) {
+    if (!authLoading && (!user || user.role !== "admin")) {
       router.push("/dashboard");
     }
-    // TODO: Fetch actual teacher data from Firestore
-    // const fetchTeachers = async () => {
-    //   if (user && user.role === 'admin') {
-    //     const q = query(collection(db, "users"), where("role", "==", "teacher"));
-    //     const querySnapshot = await getDocs(q);
-    //     const teacherList = querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
-    //     setTeachers(teacherList);
-    //   }
-    // };
-    // fetchTeachers();
-  }, [user, loading, router]);
+  }, [user, authLoading, router]);
 
-  if (loading || !user || user.role !== "admin") {
-    return <p>Loading or unauthorized...</p>;
-  }
-  
-  const filteredTeachers = teachers.filter(teacher => 
-    teacher.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    teacher.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const fetchTeachersAndCounts = async () => {
+    setIsLoading(true);
+    try {
+      const fetchedTeachers = await getUsers("teacher");
+      setTeachers(fetchedTeachers);
 
-  const getAssignedSubjectsCount = (teacherUid: string) => {
-    // TODO: This will need to query Firestore or use a more efficient data structure
-    // For now, it uses mock data.
-    return mockTeacherAssignments.filter(assignment => assignment.teacherUid === teacherUid).length;
+      const counts: Record<string, number> = {};
+      for (const teacher of fetchedTeachers) {
+        const assignments = await getAssignmentsByTeacher(teacher.uid);
+        counts[teacher.uid] = assignments.length;
+      }
+      setAssignedCounts(counts);
+
+    } catch (error) {
+      console.error("Error fetching teachers or assignments:", error);
+      toast({ title: "Error", description: "Could not fetch teacher records or assignment counts.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
+  useEffect(() => {
+    if (user && user.role === 'admin') {
+      fetchTeachersAndCounts();
+    }
+  }, [user]);
+
+  if (authLoading || !user || user.role !== "admin") {
+     return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /><p className="ml-2">Loading or unauthorized...</p></div>;
+  }
+  
+  const filteredTeachers = useMemo(() => teachers.filter(teacher => 
+    teacher.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    teacher.email.toLowerCase().includes(searchTerm.toLowerCase())
+  ), [teachers, searchTerm]);
+
+  // TODO: Implement Add Teacher Dialog
+  // TODO: Implement Edit Teacher Dialog
+  // TODO: Implement Delete Teacher
 
   return (
     <div className="space-y-6">
@@ -66,10 +82,10 @@ export default function ManageTeachersPage() {
           <p className="text-muted-foreground">View, add, edit, or delete teacher records.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => console.log("Export teachers") /* TODO */}>
             <FileDown className="mr-2 h-4 w-4" /> Export
           </Button>
-          <Button>
+          <Button onClick={() => console.log("Add teacher") /* TODO */}>
             <PlusCircle className="mr-2 h-4 w-4" /> Add Teacher
           </Button>
         </div>
@@ -90,6 +106,12 @@ export default function ManageTeachersPage() {
           </div>
         </CardHeader>
         <CardContent>
+           {isLoading ? (
+             <div className="flex justify-center items-center h-24">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="ml-2">Loading teachers...</p>
+            </div>
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -116,7 +138,7 @@ export default function ManageTeachersPage() {
                   <TableCell className="font-medium">{teacher.name}</TableCell>
                   <TableCell>{teacher.email}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary">{getAssignedSubjectsCount(teacher.uid)}</Badge>
+                    <Badge variant="secondary">{assignedCounts[teacher.uid] ?? <Loader2 className="h-3 w-3 animate-spin" />}</Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
@@ -128,17 +150,17 @@ export default function ManageTeachersPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => console.log("View teacher details", teacher.uid) /* TODO: Link to a teacher detail page if any */}>
                           <Eye className="mr-2 h-4 w-4" /> View Details
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => console.log("Edit teacher", teacher.uid) /* TODO */}>
                           <Edit2 className="mr-2 h-4 w-4" /> Edit Teacher
                         </DropdownMenuItem>
-                         <DropdownMenuItem>
+                         <DropdownMenuItem onClick={() => router.push(`/dashboard/admin/assign-subjects?teacherId=${teacher.uid}`)}>
                           <BookOpen className="mr-2 h-4 w-4" /> Manage Subjects
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive">
+                        <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => console.log("Delete teacher", teacher.uid) /* TODO */}>
                           <Trash2 className="mr-2 h-4 w-4" /> Delete Teacher
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -148,12 +170,13 @@ export default function ManageTeachersPage() {
               )) : (
                  <TableRow>
                   <TableCell colSpan={5} className="text-center h-24">
-                    No teachers found.
+                    No teachers found. {teachers.length === 0 && !searchTerm ? "No teachers registered yet." : ""}
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
     </div>

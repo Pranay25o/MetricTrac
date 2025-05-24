@@ -6,21 +6,25 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/auth-provider";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { analyzeStudentPerformance, type AnalyzeStudentPerformanceInput, type AnalyzeStudentPerformanceOutput } from "@/ai/flows/analyze-student-performance";
-import { mockMarks, mockSemesters, mockSubjects } from "@/lib/mock-data"; // Will be replaced
-import type { StudentMarksDataForAI } from "@/lib/types";
+import { getMarksByStudent } from "@/lib/firestore/marks"; // Fetch marks from Firestore
+import type { Mark, StudentMarksDataForAI } from "@/lib/types";
 import { Loader2, Brain, Sparkles } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useToast } from "@/hooks/use-toast";
 
-// TODO: Replace mock data with Firestore data fetching
 export default function PerformanceAnalysisPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
   
   const [analysisResult, setAnalysisResult] = useState<AnalyzeStudentPerformanceOutput | null>(null);
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [studentMarks, setStudentMarks] = useState<Mark[]>([]);
+  const [isLoadingMarks, setIsLoadingMarks] = useState(true);
+
 
   useEffect(() => {
     if (!authLoading && (!user || user.role !== "student")) {
@@ -28,36 +32,58 @@ export default function PerformanceAnalysisPage() {
     }
   }, [user, authLoading, router]);
 
+  const fetchStudentMarksForAI = useCallback(async () => {
+    if (!user) return;
+    setIsLoadingMarks(true);
+    try {
+      const marks = await getMarksByStudent(user.uid); // Fetch all marks for the student
+      setStudentMarks(marks);
+    } catch (e) {
+      console.error("Error fetching marks for AI analysis:", e);
+      setError("Failed to fetch your marks data. Analysis may be incomplete or unavailable.");
+      toast({ title: "Data Error", description: "Could not fetch your marks for analysis.", variant: "destructive"});
+    } finally {
+      setIsLoadingMarks(false);
+    }
+  }, [user, toast]);
+
+  useEffect(() => {
+    if (user && user.role === "student") {
+      fetchStudentMarksForAI();
+    }
+  }, [user, fetchStudentMarksForAI]);
+
   const handleGenerateAnalysis = async () => {
     if (!user) return;
+    if (isLoadingMarks) {
+        toast({title: "Please wait", description: "Still loading your marks data."});
+        return;
+    }
 
     setIsLoadingAnalysis(true);
     setError(null);
     setAnalysisResult(null);
 
     try {
-      // Prepare marks data for AI
-      // TODO: Fetch marks for the logged-in student from Firestore
-      const studentMarksDataForAI: StudentMarksDataForAI[] = mockMarks // Replace mockMarks
-        .filter(mark => mark.studentUid === user.uid) // Changed to studentUid
-        .map(mark => ({
-          semester: mockSemesters.find(s => s.id === mark.semesterId)?.name || 'Unknown Semester', // TODO: Use semesters from Firestore
-          subject: mockSubjects.find(s => s.id === mark.subjectId)?.name || 'Unknown Subject', // TODO: Use subjects from Firestore
+      if (studentMarks.length === 0) {
+        setError("No marks data found to analyze. Please ensure your marks are updated and available.");
+        setIsLoadingAnalysis(false);
+        return;
+      }
+      
+      const studentMarksDataForAI: StudentMarksDataForAI[] = studentMarks.map(mark => ({
+          // Ensure semesterName and subjectName are present on the mark object
+          semester: mark.semesterName || 'Unknown Semester', 
+          subject: mark.subjectName || 'Unknown Subject', 
           ca1: mark.ca1 ?? 0,
           ca2: mark.ca2 ?? 0,
           midTerm: mark.midTerm ?? 0,
           endTerm: mark.endTerm ?? 0,
         }));
 
-      if (studentMarksDataForAI.length === 0) {
-        setError("No marks data found to analyze. Please ensure your marks are updated.");
-        setIsLoadingAnalysis(false);
-        return;
-      }
-
       const input: AnalyzeStudentPerformanceInput = {
         studentName: user.name,
-        studentId: user.uid, // Changed to user.uid
+        studentId: user.uid,
         marksData: studentMarksDataForAI,
       };
       
@@ -66,13 +92,14 @@ export default function PerformanceAnalysisPage() {
     } catch (e) {
       console.error("Error generating performance analysis:", e);
       setError("Failed to generate performance analysis. Please try again later.");
+      toast({ title: "Analysis Error", description: "An error occurred while generating insights.", variant: "destructive"});
     } finally {
       setIsLoadingAnalysis(false);
     }
   };
 
   if (authLoading || !user || user.role !== "student") {
-    return <p>Loading or unauthorized...</p>;
+    return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /><p className="ml-2">Loading or unauthorized...</p></div>;
   }
 
   return (
@@ -89,13 +116,13 @@ export default function PerformanceAnalysisPage() {
         </CardHeader>
         <CardContent>
           <div className="flex justify-center mb-8">
-            <Button onClick={handleGenerateAnalysis} disabled={isLoadingAnalysis} size="lg">
-              {isLoadingAnalysis ? (
+            <Button onClick={handleGenerateAnalysis} disabled={isLoadingAnalysis || isLoadingMarks} size="lg">
+              {isLoadingAnalysis || isLoadingMarks ? (
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
               ) : (
                 <Sparkles className="mr-2 h-5 w-5" />
               )}
-              Generate My Performance Insights
+              {isLoadingMarks ? "Loading Marks..." : isLoadingAnalysis ? "Generating..." : "Generate My Performance Insights"}
             </Button>
           </div>
 
@@ -120,7 +147,7 @@ export default function PerformanceAnalysisPage() {
                   <CardTitle className="text-xl text-accent">Overall Performance</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-foreground">{analysisResult.overallPerformance}</p>
+                  <p className="text-foreground whitespace-pre-line">{analysisResult.overallPerformance}</p>
                 </CardContent>
               </Card>
 
@@ -153,7 +180,7 @@ export default function PerformanceAnalysisPage() {
               </Card>
             </div>
           )}
-          {!analysisResult && !isLoadingAnalysis && !error && (
+          {!analysisResult && !isLoadingAnalysis && !error && !isLoadingMarks && (
              <div className="text-center py-10 border-2 border-dashed border-border rounded-lg">
                 <Sparkles className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                 <p className="text-lg text-muted-foreground">Click the button above to generate your personalized performance insights.</p>
