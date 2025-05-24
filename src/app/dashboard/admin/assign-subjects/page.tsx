@@ -1,3 +1,4 @@
+
 // src/app/dashboard/admin/assign-subjects/page.tsx
 "use client";
 
@@ -70,7 +71,7 @@ export default function AssignSubjectsPage() {
                   <SelectValue placeholder="All Teachers" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Teachers</SelectItem>
+                  {/* <SelectItem value="">All Teachers</SelectItem>  Removed this line */}
                   {mockTeachers.map(teacher => (
                     <SelectItem key={teacher.id} value={teacher.id}>{teacher.name}</SelectItem>
                   ))}
@@ -84,7 +85,7 @@ export default function AssignSubjectsPage() {
                   <SelectValue placeholder="All Subjects" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Subjects</SelectItem>
+                  {/* <SelectItem value="">All Subjects</SelectItem> Removed this line */}
                   {mockSubjects.map(subject => (
                     <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>
                   ))}
@@ -98,7 +99,7 @@ export default function AssignSubjectsPage() {
                   <SelectValue placeholder="All Semesters" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Semesters</SelectItem>
+                  {/* <SelectItem value="">All Semesters</SelectItem> Removed this line */}
                   {mockSemesters.map(semester => (
                     <SelectItem key={semester.id} value={semester.id}>{semester.name}</SelectItem>
                   ))}
