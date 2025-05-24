@@ -42,14 +42,24 @@ export default function ManageTeachersPage() {
 
       const counts: Record<string, number> = {};
       for (const teacher of fetchedTeachers) {
-        const assignments = await getAssignmentsByTeacher(teacher.uid);
-        counts[teacher.uid] = assignments.length;
+        try {
+            const assignments = await getAssignmentsByTeacher(teacher.uid);
+            counts[teacher.uid] = assignments.length;
+        } catch (assignmentError) {
+            console.error(`Error fetching assignments for teacher ${teacher.uid} (${teacher.name}):`, assignmentError);
+            counts[teacher.uid] = 0; // Default to 0 on error
+            toast({
+                title: "Assignment Count Error",
+                description: `Could not fetch assignment count for ${teacher.name}.`,
+                variant: "destructive"
+            });
+        }
       }
       setAssignedCounts(counts);
 
     } catch (error) {
-      console.error("Error fetching teachers or assignments:", error);
-      toast({ title: "Error", description: "Could not fetch teacher records or assignment counts.", variant: "destructive" });
+      console.error("Error fetching teachers:", error);
+      toast({ title: "Error", description: "Could not fetch teacher records.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
