@@ -9,39 +9,36 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/auth-provider";
 import { MeritTracLogo } from "@/components/icons/logo";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation"; // Import useSearchParams
+import { useRouter, useSearchParams } from "next/navigation"; 
 import { useEffect, useState } from "react";
-import { Loader2, LogIn, AlertCircle } from "lucide-react"; // Added AlertCircle
+import { Loader2, LogIn, AlertCircle } from "lucide-react"; 
 import { useToast } from "@/hooks/use-toast";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Added Alert components
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; 
 
 export default function LoginPage() {
   const { loginUser, user, loading } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams(); // Get search params
+  const searchParams = useSearchParams(); 
   const { toast } = useToast();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [pageAlert, setPageAlert] = useState<{ title: string, description: string } | null>(null);
+  const [pageAlert, setPageAlert] = useState<{ title: string, description: string, variant?: "default" | "destructive" } | null>(null);
 
   useEffect(() => {
     const messageCode = searchParams.get('auth_message');
-    if (messageCode === 'admin_only_logout') {
+    if (messageCode === 'admin_only_logout') { // This specific message might become obsolete with general login
       setPageAlert({
-        title: "Admin Access Required",
-        description: "This login page is for admin users only. You have been logged out."
+        title: "Logged Out",
+        description: "You have been logged out. Please log in again if you wish to continue."
       });
-      // Clear the query parameter from the URL without reloading the page
       router.replace('/', { scroll: false });
     }
   }, [searchParams, router]);
 
   useEffect(() => {
     if (!loading && user) {
-      // If user is logged in, redirect to dashboard.
-      // The specific case of non-admin on '/' is handled by AuthProvider's onAuthStateChanged.
       router.push('/dashboard');
     }
   }, [user, loading, router]);
@@ -53,24 +50,17 @@ export default function LoginPage() {
       return;
     }
     setIsSubmitting(true);
-    setPageAlert(null); // Clear any previous page alerts on new login attempt
+    setPageAlert(null); 
     try {
       await loginUser(email, password);
-      // AuthProvider's onAuthStateChanged will handle redirect or further state changes.
-      // If login is successful, redirection will occur, and setIsSubmitting(false) below might not run or matter.
     } catch (error: any) {
-      // This catch block is unlikely to be hit if loginUser in AuthProvider
-      // handles all its own errors and shows toasts.
-      // console.error("Login page caught error (should be handled by AuthProvider):", error);
-      // toast({ title: "Login Error", description: "An unexpected error occurred on the login page.", variant: "destructive" });
+      // Errors are typically handled within loginUser and shown as toasts
     } finally {
-      // This ensures isSubmitting is reset if loginUser completes (even if it handles an error internally
-      // and doesn't throw up to here), or if an unexpected error occurred that wasn't caught by loginUser.
-      setIsSubmitting(false);
+      setIsSubmitting(false); 
     }
   };
   
-  if (loading || (!loading && user && !pageAlert)) { // Show loading if auth is loading, or if user exists (and no alert is pending from redirection)
+  if (loading || (!loading && user && !pageAlert)) { 
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-6 bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -91,8 +81,13 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           {pageAlert && (
-            <Alert variant="default" className="mb-4 border-yellow-400 bg-yellow-50 text-yellow-700 dark:border-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-300">
-              <AlertCircle className="h-4 w-4 !text-yellow-600 dark:!text-yellow-400" /> {/* Ensure icon color matches */}
+            <Alert 
+              variant={pageAlert.variant || "default"} 
+              className={`mb-4 ${pageAlert.variant === "destructive" ? 
+                "border-destructive bg-destructive/10 text-destructive dark:border-destructive dark:bg-destructive/20 dark:text-destructive" : 
+                "border-yellow-400 bg-yellow-50 text-yellow-700 dark:border-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-300"}`}
+            >
+              <AlertCircle className="h-4 w-4" /> 
               <AlertTitle className="font-semibold">{pageAlert.title}</AlertTitle>
               <AlertDescription>
                 {pageAlert.description}
@@ -105,7 +100,7 @@ export default function LoginPage() {
               <Input 
                 id="email" 
                 type="email" 
-                placeholder="admin@pescoe.com" 
+                placeholder="you@example.com" // Changed placeholder
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required 
