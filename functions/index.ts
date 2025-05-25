@@ -5,14 +5,16 @@ import path from 'path';
 
 // Determine if running in development or production
 const dev = process.env.NODE_ENV !== 'production';
+const projectRoot = path.resolve(__dirname, '../'); // Assumes functions folder is a direct child of project root
+
+console.log('nextjsServer: Initializing Next.js app. Dev mode:', dev, 'Project root:', projectRoot);
 
 // Initialize Next.js app
 // 'dir' should point to the root of your Next.js project (where pages, .next, next.config.js are)
-// From the 'functions' directory, '../' goes up to the project root.
 const app = next({
   dev,
-  conf: { distDir: '.next' }, // Specifies the Next.js build output directory
-  dir: path.resolve(__dirname, '../'),
+  conf: { distDir: '.next' }, // Specifies the Next.js build output directory relative to 'dir'
+  dir: projectRoot, // The root of your Next.js project
 });
 
 const handle = app.getRequestHandler();
@@ -27,8 +29,6 @@ export const nextjsServer = functions.https.onRequest(async (req, res) => {
     return handle(req, res);
   } catch (error) {
     console.error('nextjsServer: Critical error during Next.js request handling or app preparation:', error);
-    // It's good practice to also log the error to Firebase Functions logs (Firebase does this automatically for console.error)
-    // functions.logger.error('nextjsServer: Critical error:', error); // This is redundant if using console.error
     // Send a generic 500 error response
     res.status(500).send('Internal Server Error - Please check function logs in Firebase Console for details.');
   }
