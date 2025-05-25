@@ -1,3 +1,4 @@
+
 // src/components/dashboard/nav-links.tsx
 "use client";
 
@@ -19,6 +20,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  useSidebar, // Import useSidebar
 } from "@/components/ui/sidebar";
 import type { Role } from "@/lib/types";
 
@@ -47,10 +49,17 @@ const navItems: NavItem[] = [
 
 export function NavLinks({ userRole }: { userRole: Role | null }) {
   const pathname = usePathname();
+  const { isMobile, setOpenMobile } = useSidebar(); // Get sidebar context
 
   if (!userRole) return null;
 
   const filteredNavItems = navItems.filter(item => item.roles.includes(userRole));
+
+  const handleLinkClick = () => {
+    if (isMobile) {
+      setOpenMobile(false); // Close mobile sidebar on link click
+    }
+  };
 
   return (
     <SidebarMenu>
@@ -60,7 +69,11 @@ export function NavLinks({ userRole }: { userRole: Role | null }) {
         return (
           <SidebarMenuItem key={item.href}>
             <Link href={item.href} passHref legacyBehavior>
-              <SidebarMenuButton isActive={isActive} tooltip={item.label}>
+              <SidebarMenuButton 
+                isActive={isActive} 
+                tooltip={item.label}
+                onClick={handleLinkClick} // Add onClick handler here
+              >
                 <Icon className="h-5 w-5" />
                 <span>{item.label}</span>
               </SidebarMenuButton>

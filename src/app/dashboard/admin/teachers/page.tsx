@@ -8,15 +8,15 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/contexts/auth-provider";
-import { getUsers, deleteUserFromFirestore } from "@/lib/firestore/users"; 
+import { getUsers } from "@/lib/firestore/users"; // Removed deleteUserFromFirestore 
 import { getAssignmentsByTeacher } from "@/lib/firestore/teacherAssignments"; 
 import type { UserProfile } from "@/lib/types";
-import { MoreHorizontal, PlusCircle, Search, FileDown, BookOpen, Loader2, AlertTriangle, Trash2 } from "lucide-react"; // Added Trash2
+import { MoreHorizontal, PlusCircle, Search, FileDown, BookOpen, Edit2, Loader2, AlertTriangle } from "lucide-react"; // Added Edit2, removed Trash2
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription as UiDialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+// Removed Dialog related imports as delete is removed
 import { Alert, AlertTitle, AlertDescription as UiAlertDescription } from "@/components/ui/alert";
 
 
@@ -30,9 +30,10 @@ export default function ManageTeachersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [assignedCounts, setAssignedCounts] = useState<Record<string, number>>({});
 
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [teacherToDelete, setTeacherToDelete] = useState<UserProfile | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  // Delete functionality removed for now
+  // const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  // const [teacherToDelete, setTeacherToDelete] = useState<UserProfile | null>(null);
+  // const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchTeachersAndCounts = useCallback(async () => {
     console.log("ManageTeachersPage: fetchTeachersAndCounts triggered");
@@ -85,29 +86,33 @@ export default function ManageTeachersPage() {
     }
   }, [user, authLoading, fetchTeachersAndCounts]);
 
+  // Delete functionality removed for now
+  // const openDeleteDialog = (teacher: UserProfile) => {
+  //   setTeacherToDelete(teacher);
+  //   setIsDeleteDialogOpen(true);
+  // };
 
-  const openDeleteDialog = (teacher: UserProfile) => {
-    setTeacherToDelete(teacher);
-    setIsDeleteDialogOpen(true);
-  };
+  // const handleDeleteTeacher = async () => {
+  //   if (!teacherToDelete) return;
+  //   console.log("ManageTeachersPage: Attempting to delete teacher:", teacherToDelete.uid, teacherToDelete.name);
+  //   setIsDeleting(true);
+  //   try {
+  //     await deleteUserFromFirestore(teacherToDelete.uid);
+  //     toast({ title: "Teacher Deleted", description: `${teacherToDelete.name} has been removed from Firestore. Remember to delete from Firebase Authentication manually if needed.` });
+  //     fetchTeachersAndCounts(); 
+  //     console.log("ManageTeachersPage: Teacher deleted successfully from Firestore:", teacherToDelete.uid);
+  //   } catch (error: any) {
+  //     console.error("Error deleting teacher from Firestore:", error);
+  //     toast({ title: "Error Deleting Teacher", description: `Could not delete ${teacherToDelete.name}. Check console for Firestore errors or permissions. Error: ${error.message}`, variant: "destructive" });
+  //   } finally {
+  //     setIsDeleting(false);
+  //     setIsDeleteDialogOpen(false);
+  //     setTeacherToDelete(null);
+  //   }
+  // };
 
-  const handleDeleteTeacher = async () => {
-    if (!teacherToDelete) return;
-    console.log("ManageTeachersPage: Attempting to delete teacher:", teacherToDelete.uid, teacherToDelete.name);
-    setIsDeleting(true);
-    try {
-      await deleteUserFromFirestore(teacherToDelete.uid);
-      toast({ title: "Teacher Deleted", description: `${teacherToDelete.name} has been removed from Firestore. Remember to delete from Firebase Authentication manually if needed.` });
-      fetchTeachersAndCounts(); 
-      console.log("ManageTeachersPage: Teacher deleted successfully from Firestore:", teacherToDelete.uid);
-    } catch (error: any) {
-      console.error("Error deleting teacher from Firestore:", error);
-      toast({ title: "Error Deleting Teacher", description: `Could not delete ${teacherToDelete.name}. Check console for Firestore errors or permissions. Error: ${error.message}`, variant: "destructive" });
-    } finally {
-      setIsDeleting(false);
-      setIsDeleteDialogOpen(false);
-      setTeacherToDelete(null);
-    }
+  const handleEditTeacher = () => {
+    toast({ title: "Feature Coming Soon", description: "Editing teacher details will be available in a future update." });
   };
   
   const filteredTeachers = useMemo(() => teachers.filter(teacher => 
@@ -136,33 +141,12 @@ export default function ManageTeachersPage() {
         </div>
       </div>
 
-      {/* Delete Teacher Confirmation Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={(isOpen) => {
-        setIsDeleteDialogOpen(isOpen);
-        if (!isOpen) setTeacherToDelete(null);
-      }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Teacher</DialogTitle>
-            <UiDialogDescription>
-              Are you sure you want to delete {teacherToDelete?.name}? This will remove their record from Firestore.
-              You may also need to manually delete their account from Firebase Authentication. This action cannot be undone.
-            </UiDialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-            <Button variant="destructive" onClick={handleDeleteTeacher} disabled={isDeleting}>
-              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Delete Teacher
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Delete Teacher Confirmation Dialog Removed */}
 
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Teacher List</CardTitle>
-          <CardDescription>A list of all registered teachers in the system.</CardDescription>
+          <CardDescription>A list of all registered teachers in the system. If data isn't showing, check console (F12) for errors.</CardDescription>
            <div className="relative mt-4">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
@@ -211,9 +195,8 @@ export default function ManageTeachersPage() {
                             <DropdownMenuItem onClick={() => router.push(`/dashboard/admin/assign-subjects?teacherId=${teacher.uid}`)}>
                               <BookOpen className="mr-2 h-4 w-4" /> Manage Subjects
                             </DropdownMenuItem>
-                             <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => openDeleteDialog(teacher)}>
-                              <Trash2 className="mr-2 h-4 w-4" /> Delete Teacher
+                            <DropdownMenuItem onClick={handleEditTeacher}>
+                              <Edit2 className="mr-2 h-4 w-4" /> Edit Teacher
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
