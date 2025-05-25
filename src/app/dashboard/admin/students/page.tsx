@@ -10,11 +10,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useAuth } from "@/contexts/auth-provider";
 import { getUsers, deleteUserFromFirestore } from "@/lib/firestore/users";
 import type { UserProfile } from "@/lib/types";
-import { MoreHorizontal, PlusCircle, Search, FileDown, Edit2, Trash2, Eye, Loader2 } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Search, FileDown, Edit2, Trash2, Eye, Loader2, AlertTriangle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription as UiDialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog"; // Renamed DialogDescription
+import { Alert, AlertTitle, AlertDescription as UiAlertDescription } from "@/components/ui/alert";
+
 
 export default function ManageStudentsPage() {
   const { user, loading: authLoading } = useAuth();
@@ -36,23 +38,27 @@ export default function ManageStudentsPage() {
   }, [user, authLoading, router]);
 
   const fetchStudents = useCallback(async () => {
+    console.log("ManageStudentsPage: fetchStudents triggered");
     setIsLoading(true);
     try {
       const fetchedStudents = await getUsers("student");
       setStudents(fetchedStudents);
+      console.log("ManageStudentsPage: Fetched students:", fetchedStudents.length);
     } catch (error) {
       console.error("Error fetching students:", error);
-      toast({ title: "Error", description: "Could not fetch student records.", variant: "destructive" });
+      toast({ title: "Error Fetching Students", description: "Could not fetch student records. Check console for Firestore index or permission errors.", variant: "destructive" });
+      setStudents([]);
     } finally {
       setIsLoading(false);
     }
   }, [toast]);
   
   useEffect(() => {
-    if (user && user.role === 'admin') {
+    console.log("ManageStudentsPage: useEffect for fetching students. User:", !!user, "Role:", user?.role, "AuthLoading:", authLoading);
+    if (user && user.role === 'admin' && !authLoading) {
       fetchStudents();
     }
-  }, [user, fetchStudents]);
+  }, [user, authLoading, fetchStudents]);
 
   const openDeleteDialog = (student: UserProfile) => {
     setStudentToDelete(student);
@@ -61,16 +67,18 @@ export default function ManageStudentsPage() {
 
   const handleDeleteStudent = async () => {
     if (!studentToDelete) return;
+    console.log("ManageStudentsPage: Attempting to delete student:", studentToDelete.uid, studentToDelete.name);
     setIsDeleting(true);
     try {
       await deleteUserFromFirestore(studentToDelete.uid);
       toast({ title: "Student Deleted", description: `${studentToDelete.name} has been removed from the database. Remember to delete from Firebase Authentication manually.` });
-      fetchStudents(); // Refresh the list
+      fetchStudents(); 
       setIsDeleteDialogOpen(false);
       setStudentToDelete(null);
+      console.log("ManageStudentsPage: Student deleted successfully:", studentToDelete.uid);
     } catch (error: any) {
       console.error("Error deleting student:", error);
-      toast({ title: "Error Deleting Student", description: error.message || "Could not delete student.", variant: "destructive" });
+      toast({ title: "Error Deleting Student", description: error.message || "Could not delete student. Check console/permissions.", variant: "destructive" });
     } finally {
       setIsDeleting(false);
     }
@@ -94,10 +102,10 @@ export default function ManageStudentsPage() {
           <p className="text-muted-foreground">View, add, edit, or delete student records.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => console.log("Export students") /* TODO */}>
+          <Button variant="outline" onClick={() => console.log("Export students TODO")}>
             <FileDown className="mr-2 h-4 w-4" /> Export
           </Button>
-          <Button onClick={() => console.log("Add student clicked") /* TODO: Open Add Student Dialog */}>
+          <Button onClick={() => console.log("Add student clicked TODO")}>
             <PlusCircle className="mr-2 h-4 w-4" /> Add Student
           </Button>
         </div>
@@ -111,10 +119,10 @@ export default function ManageStudentsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Student</DialogTitle>
-            <DialogDescription>
+            <UiDialogDescription>
               Are you sure you want to delete {studentToDelete?.name}? This will remove their record from Firestore.
               You must also manually delete their account from Firebase Authentication. This action cannot be undone.
-            </DialogDescription>
+            </UiDialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
@@ -147,54 +155,60 @@ export default function ManageStudentsPage() {
                 <p className="ml-2">Loading students...</p>
             </div>
           ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>PRN</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredStudents.length > 0 ? filteredStudents.map((student: UserProfile) => (
-                <TableRow key={student.uid}>
-                  <TableCell className="font-medium">{student.name}</TableCell>
-                  <TableCell>{student.email}</TableCell>
-                  <TableCell>{student.prn || "N/A"}</TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <span className="sr-only">Open menu</span>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => router.push(`/dashboard/student/${student.uid}/performance-analysis`)}>
-                          <Eye className="mr-2 h-4 w-4" /> View Details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => console.log("Edit student:", student.uid) /* TODO */}>
-                          <Edit2 className="mr-2 h-4 w-4" /> Edit Student
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => openDeleteDialog(student)}>
-                          <Trash2 className="mr-2 h-4 w-4" /> Delete Student
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              )) : (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center h-24">
-                    No students found. {students.length === 0 && !searchTerm ? "No students registered yet. Use the Signup page to add students." : "Clear search or add students."}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+            students.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>PRN</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredStudents.map((student: UserProfile) => (
+                    <TableRow key={student.uid}>
+                      <TableCell className="font-medium">{student.name}</TableCell>
+                      <TableCell>{student.email}</TableCell>
+                      <TableCell>{student.prn || "N/A"}</TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => router.push(`/dashboard/student/${student.uid}/performance-analysis`)}>
+                              <Eye className="mr-2 h-4 w-4" /> View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => console.log("Edit student TODO:", student.uid) /* TODO */}>
+                              <Edit2 className="mr-2 h-4 w-4" /> Edit Student
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => openDeleteDialog(student)}>
+                              <Trash2 className="mr-2 h-4 w-4" /> Delete Student
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <Alert variant="default" className="mt-4 border-blue-500 bg-blue-50">
+                <AlertTriangle className="h-5 w-5 text-blue-700" />
+                <AlertTitle className="font-semibold text-blue-800">No Students Found</AlertTitle>
+                <UiAlertDescription className="text-blue-700">
+                  {searchTerm ? "No students match your search criteria." : "No students have been registered in the system yet. Use the Signup page to add students."}
+                  <br />
+                  <strong>If data is expected but not showing, please check your browser's developer console (F12) for Firestore index errors or permission issues.</strong>
+                </UiAlertDescription>
+              </Alert>
+            )
           )}
         </CardContent>
       </Card>

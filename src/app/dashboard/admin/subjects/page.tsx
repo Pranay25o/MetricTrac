@@ -7,15 +7,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose, DialogDescription as UiDialogDescription } from "@/components/ui/dialog"; // Renamed DialogDescription
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/auth-provider";
 import { addSubject, getSubjects, deleteSubject as deleteSubjectFromDb, updateSubject } from "@/lib/firestore/subjects";
 import type { Subject } from "@/lib/types";
-import { MoreHorizontal, PlusCircle, Search, Edit2, Trash2, Loader2 } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Search, Edit2, Trash2, Loader2, AlertTriangle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { Alert, AlertTitle, AlertDescription as UiAlertDescription } from "@/components/ui/alert";
+
 
 export default function ManageSubjectsPage() {
   const { user, loading: authLoading } = useAuth();
@@ -55,17 +57,18 @@ export default function ManageSubjectsPage() {
       console.log("ManageSubjectsPage: Fetched subjects:", fetchedSubjects.length);
     } catch (error) {
       console.error("Error fetching subjects:", error);
-      toast({ title: "Error", description: "Could not fetch subjects. Check Firestore rules or index status.", variant: "destructive" });
+      toast({ title: "Error Fetching Subjects", description: "Could not fetch subjects. Check console for Firestore index or permission errors.", variant: "destructive" });
+      setSubjects([]);
     } finally {
       setIsLoading(false);
     }
   }, [toast]);
 
   useEffect(() => {
-    if (user && user.role === "admin") {
+    if (user && user.role === "admin" && !authLoading) {
       fetchSubjects();
     }
-  }, [user, fetchSubjects]);
+  }, [user, authLoading, fetchSubjects]);
 
   const handleAddSubject = async () => {
     if (!newSubjectName || !newSubjectCode) {
@@ -83,7 +86,7 @@ export default function ManageSubjectsPage() {
       fetchSubjects(); 
     } catch (error) {
       console.error("Error adding subject:", error);
-      toast({ title: "Error", description: "Could not add subject.", variant: "destructive" });
+      toast({ title: "Error", description: "Could not add subject (check console/permissions).", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -112,7 +115,7 @@ export default function ManageSubjectsPage() {
       fetchSubjects();
     } catch (error) {
       console.error("Error updating subject:", error);
-      toast({ title: "Error", description: "Could not update subject.", variant: "destructive" });
+      toast({ title: "Error", description: "Could not update subject (check console/permissions).", variant: "destructive" });
     } finally {
       setIsUpdating(false);
     }
@@ -130,7 +133,7 @@ export default function ManageSubjectsPage() {
       fetchSubjects(); 
     } catch (error) {
       console.error("Error deleting subject:", error);
-      toast({ title: "Error", description: "Could not delete subject. It might be assigned to teachers or have marks recorded.", variant: "destructive" });
+      toast({ title: "Error", description: "Could not delete subject. It might be assigned to teachers or have marks recorded (check console/permissions).", variant: "destructive" });
     }
   };
   
@@ -194,7 +197,7 @@ export default function ManageSubjectsPage() {
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Edit Subject</DialogTitle>
-            <DialogDescription>Modify the name or code for this subject.</DialogDescription>
+            <UiDialogDescription>Modify the name or code for this subject.</UiDialogDescription>
           </DialogHeader>
           {editingSubject && (
             <div className="grid gap-4 py-4">
@@ -221,7 +224,7 @@ export default function ManageSubjectsPage() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Subject List</CardTitle>
-          <CardDescription>All available subjects in the system. Create Firestore index on 'name (asc)' if initial load fails.</CardDescription>
+          <CardDescription>All available subjects in the system.</CardDescription>
            <div className="relative mt-4">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
@@ -239,48 +242,54 @@ export default function ManageSubjectsPage() {
                 <p className="ml-2">Loading subjects...</p>
             </div>
           ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Subject Name</TableHead>
-                <TableHead>Subject Code</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredSubjects.length > 0 ? filteredSubjects.map((subject: Subject) => (
-                <TableRow key={subject.id}>
-                  <TableCell className="font-medium">{subject.name}</TableCell>
-                  <TableCell>{subject.code}</TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <span className="sr-only">Open menu</span>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => openEditDialog(subject)}>
-                          <Edit2 className="mr-2 h-4 w-4" /> Edit Subject
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => handleDeleteSubject(subject.id)}>
-                          <Trash2 className="mr-2 h-4 w-4" /> Delete Subject
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              )) : (
-                <TableRow>
-                  <TableCell colSpan={3} className="text-center h-24">
-                    {subjects.length === 0 && !searchTerm ? "No subjects found. Try adding a new subject." : "No subjects match your search. Clear search or add a subject."}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+            subjects.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Subject Name</TableHead>
+                    <TableHead>Subject Code</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredSubjects.map((subject: Subject) => (
+                    <TableRow key={subject.id}>
+                      <TableCell className="font-medium">{subject.name}</TableCell>
+                      <TableCell>{subject.code}</TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => openEditDialog(subject)}>
+                              <Edit2 className="mr-2 h-4 w-4" /> Edit Subject
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => handleDeleteSubject(subject.id)}>
+                              <Trash2 className="mr-2 h-4 w-4" /> Delete Subject
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+               <Alert variant="default" className="mt-4 border-blue-500 bg-blue-50">
+                <AlertTriangle className="h-5 w-5 text-blue-700" />
+                <AlertTitle className="font-semibold text-blue-800">No Subjects Found</AlertTitle>
+                <UiAlertDescription className="text-blue-700">
+                  {searchTerm ? "No subjects match your search." : "No subjects found. Try adding a new subject."}
+                  <br />
+                  <strong>If data is expected but not showing, please check your browser's developer console (F12) for Firestore index errors or permission issues.</strong>
+                </UiAlertDescription>
+              </Alert>
+            )
           )}
         </CardContent>
       </Card>

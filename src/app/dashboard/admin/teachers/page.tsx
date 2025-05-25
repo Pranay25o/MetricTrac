@@ -11,12 +11,14 @@ import { useAuth } from "@/contexts/auth-provider";
 import { getUsers, deleteUserFromFirestore } from "@/lib/firestore/users"; 
 import { getAssignmentsByTeacher } from "@/lib/firestore/teacherAssignments"; 
 import type { UserProfile } from "@/lib/types";
-import { MoreHorizontal, PlusCircle, Search, FileDown, Edit2, Trash2, Eye, BookOpen, Loader2 } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Search, FileDown, Edit2, Trash2, Eye, BookOpen, Loader2, AlertTriangle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription as UiDialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog"; // Renamed DialogDescription
+import { Alert, AlertTitle, AlertDescription as UiAlertDescription } from "@/components/ui/alert";
+
 
 export default function ManageTeachersPage() {
   const { user, loading: authLoading } = useAuth();
@@ -33,36 +35,42 @@ export default function ManageTeachersPage() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchTeachersAndCounts = useCallback(async () => {
+    console.log("ManageTeachersPage: fetchTeachersAndCounts triggered");
     setIsLoading(true);
     try {
       const fetchedTeachers = await getUsers("teacher");
       setTeachers(fetchedTeachers);
+      console.log("ManageTeachersPage: Fetched teachers:", fetchedTeachers.length);
 
       const counts: Record<string, number> = {};
-      for (const teacher of fetchedTeachers) {
-        try {
-            const assignments = await getAssignmentsByTeacher(teacher.uid);
-            counts[teacher.uid] = assignments.length;
-        } catch (assignmentError) {
-            console.error(`Error fetching assignments for teacher ${teacher.uid} (${teacher.name}):`, assignmentError);
-            counts[teacher.uid] = 0; 
-            // Consider if toast is needed here, could be noisy if many teachers fail
-            // toast({
-            //     title: "Assignment Count Error",
-            //     description: `Could not fetch assignment count for ${teacher.name}.`,
-            //     variant: "destructive"
-            // });
+      if (fetchedTeachers.length > 0) {
+        for (const teacher of fetchedTeachers) {
+          try {
+              const assignments = await getAssignmentsByTeacher(teacher.uid);
+              counts[teacher.uid] = assignments.length;
+          } catch (assignmentError) {
+              console.error(`Error fetching assignments for teacher ${teacher.uid} (${teacher.name}):`, assignmentError);
+              counts[teacher.uid] = 0; 
+              toast({
+                  title: "Assignment Count Error",
+                  description: `Could not fetch assignment count for ${teacher.name}. Check console.`,
+                  variant: "destructive"
+              });
+          }
         }
       }
       setAssignedCounts(counts);
+      console.log("ManageTeachersPage: Fetched assignment counts:", counts);
 
     } catch (error: any) {
       console.error("Error fetching teachers:", error);
-      toast({ title: "Error", description: error.message || "Could not fetch teacher records.", variant: "destructive" });
+      toast({ title: "Error Fetching Teachers", description: error.message || "Could not fetch teacher records. Check console for Firestore index or permission errors.", variant: "destructive" });
+      setTeachers([]);
+      setAssignedCounts({});
     } finally {
       setIsLoading(false);
     }
-  }, [toast]); // Removed getUsers from dependencies as it's a stable import
+  }, [toast]); 
 
   useEffect(() => {
     if (!authLoading && (!user || user.role !== "admin")) {
@@ -71,10 +79,11 @@ export default function ManageTeachersPage() {
   }, [user, authLoading, router]);
   
   useEffect(() => {
-    if (user && user.role === 'admin') {
+    console.log("ManageTeachersPage: useEffect for fetching teachers. User:", !!user, "Role:", user?.role, "AuthLoading:", authLoading);
+    if (user && user.role === 'admin' && !authLoading) {
       fetchTeachersAndCounts();
     }
-  }, [user, fetchTeachersAndCounts]);
+  }, [user, authLoading, fetchTeachersAndCounts]);
 
 
   const openDeleteDialog = (teacher: UserProfile) => {
@@ -84,16 +93,18 @@ export default function ManageTeachersPage() {
 
   const handleDeleteTeacher = async () => {
     if (!teacherToDelete) return;
+    console.log("ManageTeachersPage: Attempting to delete teacher:", teacherToDelete.uid, teacherToDelete.name);
     setIsDeleting(true);
     try {
       await deleteUserFromFirestore(teacherToDelete.uid);
       toast({ title: "Teacher Deleted", description: `${teacherToDelete.name} has been removed from the database. Remember to delete from Firebase Authentication manually.` });
-      fetchTeachersAndCounts(); // Refresh the list
+      fetchTeachersAndCounts(); 
       setIsDeleteDialogOpen(false);
       setTeacherToDelete(null);
+      console.log("ManageTeachersPage: Teacher deleted successfully:", teacherToDelete.uid);
     } catch (error: any) {
       console.error("Error deleting teacher:", error);
-      toast({ title: "Error Deleting Teacher", description: error.message || "Could not delete teacher.", variant: "destructive" });
+      toast({ title: "Error Deleting Teacher", description: error.message || "Could not delete teacher. Check console/permissions.", variant: "destructive" });
     } finally {
       setIsDeleting(false);
     }
@@ -116,10 +127,10 @@ export default function ManageTeachersPage() {
           <p className="text-muted-foreground">View, add, edit, or delete teacher records.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => console.log("Export teachers") /* TODO */}>
+          <Button variant="outline" onClick={() => console.log("Export teachers TODO")}>
             <FileDown className="mr-2 h-4 w-4" /> Export
           </Button>
-          <Button onClick={() => console.log("Add teacher") /* TODO: Implement Add Teacher Dialog */}>
+          <Button onClick={() => console.log("Add teacher TODO")}>
             <PlusCircle className="mr-2 h-4 w-4" /> Add Teacher
           </Button>
         </div>
@@ -133,10 +144,10 @@ export default function ManageTeachersPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Teacher</DialogTitle>
-            <DialogDescription>
+            <UiDialogDescription>
               Are you sure you want to delete {teacherToDelete?.name}? This will remove their record from Firestore.
               You must also manually delete their account from Firebase Authentication. This action cannot be undone.
-            </DialogDescription>
+            </UiDialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
@@ -169,59 +180,65 @@ export default function ManageTeachersPage() {
                 <p className="ml-2">Loading teachers...</p>
             </div>
           ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Assigned Subjects</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredTeachers.length > 0 ? filteredTeachers.map((teacher: UserProfile) => (
-                <TableRow key={teacher.uid}>
-                  <TableCell className="font-medium">{teacher.name}</TableCell>
-                  <TableCell>{teacher.email}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">{assignedCounts[teacher.uid] ?? <Loader2 className="h-3 w-3 animate-spin" />}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <span className="sr-only">Open menu</span>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => console.log("View teacher details", teacher.uid) /* TODO: Link to a teacher detail page if any */}>
-                          <Eye className="mr-2 h-4 w-4" /> View Details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => console.log("Edit teacher", teacher.uid) /* TODO: Implement Edit Teacher Dialog */}>
-                          <Edit2 className="mr-2 h-4 w-4" /> Edit Teacher
-                        </DropdownMenuItem>
-                         <DropdownMenuItem onClick={() => router.push(`/dashboard/admin/assign-subjects?teacherId=${teacher.uid}`)}>
-                          <BookOpen className="mr-2 h-4 w-4" /> Manage Subjects
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => openDeleteDialog(teacher)}>
-                          <Trash2 className="mr-2 h-4 w-4" /> Delete Teacher
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              )) : (
-                 <TableRow>
-                  <TableCell colSpan={4} className="text-center h-24">
-                    No teachers found. {teachers.length === 0 && !searchTerm ? "No teachers registered yet. Use the Signup page to add teachers." : "Clear search or add teachers."}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+            teachers.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Assigned Subjects</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredTeachers.map((teacher: UserProfile) => (
+                    <TableRow key={teacher.uid}>
+                      <TableCell className="font-medium">{teacher.name}</TableCell>
+                      <TableCell>{teacher.email}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">{assignedCounts[teacher.uid] ?? <Loader2 className="h-3 w-3 animate-spin" />}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => console.log("View teacher details TODO", teacher.uid) }>
+                              <Eye className="mr-2 h-4 w-4" /> View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => console.log("Edit teacher TODO", teacher.uid) }>
+                              <Edit2 className="mr-2 h-4 w-4" /> Edit Teacher
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => router.push(`/dashboard/admin/assign-subjects?teacherId=${teacher.uid}`)}>
+                              <BookOpen className="mr-2 h-4 w-4" /> Manage Subjects
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => openDeleteDialog(teacher)}>
+                              <Trash2 className="mr-2 h-4 w-4" /> Delete Teacher
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <Alert variant="default" className="mt-4 border-blue-500 bg-blue-50">
+                <AlertTriangle className="h-5 w-5 text-blue-700" />
+                <AlertTitle className="font-semibold text-blue-800">No Teachers Found</AlertTitle>
+                <UiAlertDescription className="text-blue-700">
+                  {searchTerm ? "No teachers match your search criteria." : "No teachers have been registered in the system yet. Use the Signup page to add teachers."}
+                  <br />
+                  <strong>If data is expected but not showing, please check your browser's developer console (F12) for Firestore index errors or permission issues.</strong>
+                </UiAlertDescription>
+              </Alert>
+            )
           )}
         </CardContent>
       </Card>

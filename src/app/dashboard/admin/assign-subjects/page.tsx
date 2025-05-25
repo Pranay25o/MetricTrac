@@ -5,7 +5,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -15,10 +14,12 @@ import { getSubjects } from "@/lib/firestore/subjects";
 import { getUsers } from "@/lib/firestore/users";
 import { addTeacherAssignment, getTeacherAssignments, deleteTeacherAssignment as deleteAssignmentFromDb, updateTeacherAssignment } from "@/lib/firestore/teacherAssignments";
 import type { TeacherSubjectAssignment, UserProfile, Subject, Semester } from "@/lib/types";
-import { MoreHorizontal, PlusCircle, Edit2, Trash2, Filter, Loader2 } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Edit2, Trash2, Filter, Loader2, AlertTriangle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { Alert, AlertTitle, AlertDescription as UiAlertDescription } from "@/components/ui/alert";
+
 
 export default function AssignSubjectsPage() {
   const { user, loading: authLoading } = useAuth();
@@ -62,29 +63,31 @@ export default function AssignSubjectsPage() {
   }, [user, authLoading, router]);
 
   useEffect(() => {
-    const teacherIdFromQuery = searchParams.get("teacherId");
-    if (teacherIdFromQuery) {
-      console.log("AssignSubjectsPage: Setting filterTeacher from query param:", teacherIdFromQuery);
-      setFilterTeacher(teacherIdFromQuery);
+    if (!authLoading && user && user.role === "admin") {
+      const teacherIdFromQuery = searchParams.get("teacherId");
+      if (teacherIdFromQuery) {
+        console.log("AssignSubjectsPage: Setting filterTeacher from query param:", teacherIdFromQuery);
+        setFilterTeacher(teacherIdFromQuery);
+      }
     }
-  }, [searchParams]);
+  }, [searchParams, user, authLoading]);
 
   const fetchPrerequisiteData = useCallback(async () => {
     console.log("AssignSubjectsPage: fetchPrerequisiteData triggered");
     setIsLoadingPrerequisites(true);
     try {
-      const [teachers, subjects, semesters] = await Promise.all([
+      const [teachersData, subjectsData, semestersData] = await Promise.all([
         getUsers("teacher"),
         getSubjects(),
         getSemesters(),
       ]);
-      setAllTeachers(teachers);
-      setAllSubjects(subjects);
-      setAllSemesters(semesters);
-      console.log("AssignSubjectsPage: Fetched prerequisite data:", { teachersCount: teachers.length, subjectsCount: subjects.length, semestersCount: semesters.length });
+      setAllTeachers(teachersData);
+      setAllSubjects(subjectsData);
+      setAllSemesters(semestersData);
+      console.log("AssignSubjectsPage: Fetched prerequisite data:", { teachersCount: teachersData.length, subjectsCount: subjectsData.length, semestersCount: semestersData.length });
     } catch (error) {
       console.error("Error fetching prerequisite data:", error);
-      toast({ title: "Error", description: "Could not load teachers, subjects, or semesters.", variant: "destructive" });
+      toast({ title: "Error Loading Prerequisites", description: "Could not load teachers, subjects, or semesters. Check console for details (possible index or permission issues).", variant: "destructive" });
     } finally {
       setIsLoadingPrerequisites(false);
     }
@@ -103,7 +106,7 @@ export default function AssignSubjectsPage() {
       console.log("AssignSubjectsPage: Fetched assignments:", fetchedAssignments.length, fetchedAssignments);
     } catch (error: any) {
       console.error("Error fetching assignments:", error);
-      toast({ title: "Error Fetching Assignments", description: error.message || "Could not load assignments. Check console for details (you might need to create Firestore indexes).", variant: "destructive" });
+      toast({ title: "Error Fetching Assignments", description: error.message || "Could not load assignments. Check console for details (you might need to create Firestore indexes or check permissions).", variant: "destructive" });
       setAssignments([]); 
     } finally {
       setIsLoadingAssignments(false);
@@ -111,22 +114,23 @@ export default function AssignSubjectsPage() {
   }, [toast, filterTeacher, filterSubject, filterSemester]);
 
   useEffect(() => {
-    if (user && user.role === "admin") {
+    if (user && user.role === "admin" && !authLoading) {
       console.log("AssignSubjectsPage: User is admin, fetching prerequisites.");
       fetchPrerequisiteData();
     }
-  }, [user, fetchPrerequisiteData]);
+  }, [user, authLoading, fetchPrerequisiteData]);
   
   useEffect(() => {
      console.log("AssignSubjectsPage: Assignment fetch useEffect triggered. User:", !!user, "Role:", user?.role, "LoadingPrerequisites:", isLoadingPrerequisites, "Filters:", { filterTeacher, filterSubject, filterSemester });
-    if (user && user.role === "admin" && !isLoadingPrerequisites) { 
+    if (user && user.role === "admin" && !authLoading && !isLoadingPrerequisites) { 
      console.log("AssignSubjectsPage: Conditions met, calling fetchAssignments.");
      fetchAssignments();
     } else {
       console.log("AssignSubjectsPage: Conditions NOT met for fetching assignments.");
       if(isLoadingPrerequisites) console.log("AssignSubjectsPage: Still loading prerequisites.");
+      if(authLoading) console.log("AssignSubjectsPage: Still authLoading.");
     }
-  }, [user, filterTeacher, filterSubject, filterSemester, fetchAssignments, isLoadingPrerequisites]); 
+  }, [user, authLoading, filterTeacher, filterSubject, filterSemester, fetchAssignments, isLoadingPrerequisites]); 
 
   useEffect(() => {
     console.log("Filter Teacher changed:", filterTeacher);
@@ -181,7 +185,7 @@ export default function AssignSubjectsPage() {
       fetchAssignments(); 
     } catch (error) {
       console.error("Error adding assignment:", error);
-      toast({ title: "Error", description: "Could not add assignment. It might already exist or there was a server error.", variant: "destructive" });
+      toast({ title: "Error", description: "Could not add assignment. It might already exist or there was a server error (check console/permissions).", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -233,7 +237,7 @@ export default function AssignSubjectsPage() {
       fetchAssignments();
     } catch (error) {
       console.error("Error updating assignment:", error);
-      toast({ title: "Error", description: "Could not update assignment.", variant: "destructive" });
+      toast({ title: "Error", description: "Could not update assignment (check console/permissions).", variant: "destructive" });
     } finally {
       setIsUpdating(false);
     }
@@ -252,27 +256,29 @@ export default function AssignSubjectsPage() {
       fetchAssignments(); 
     } catch (error) {
       console.error("Error deleting assignment:", error);
-      toast({ title: "Error", description: "Could not delete assignment.", variant: "destructive" });
+      toast({ title: "Error", description: "Could not delete assignment (check console/permissions).", variant: "destructive" });
     }
   };
   
-  let noAssignmentsMessage = "Loading assignments or prerequisites...";
-  if (!isLoadingAssignments && !isLoadingPrerequisites) {
-    if (assignments.length === 0) {
-      if (filterTeacher || filterSubject || filterSemester) {
-        noAssignmentsMessage = "No assignments match your current filters. Try clearing them or check console for index errors if data should exist.";
-      } else if (allTeachers.length === 0 || allSubjects.length === 0 || allSemesters.length === 0) {
-        noAssignmentsMessage = "Cannot create assignments yet. Please ensure teachers, subjects, and semesters have been added to the system.";
-      } else {
-        noAssignmentsMessage = "No assignments have been created yet. Click 'New Assignment' to add one.";
-      }
+  const renderNoAssignmentsMessage = () => {
+    if (isLoadingAssignments || isLoadingPrerequisites) {
+        return "Loading assignments or prerequisites...";
     }
-  }
+    if (allTeachers.length === 0 || allSubjects.length === 0 || allSemesters.length === 0) {
+      return "Cannot create or view assignments. Please ensure teachers, subjects, AND semesters have been added to the system.";
+    }
+    if (filterTeacher || filterSubject || filterSemester) {
+      return "No assignments match your current filters.";
+    }
+    return "No assignments have been created yet. Click 'New Assignment' to add one.";
+  };
 
 
   if (authLoading || !user || user.role !== "admin") {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /><p className="ml-2">Loading or unauthorized...</p></div>;
   }
+
+  const prerequisitesNotReady = allTeachers.length === 0 || allSubjects.length === 0 || allSemesters.length === 0;
 
   return (
     <div className="space-y-6">
@@ -290,7 +296,7 @@ export default function AssignSubjectsPage() {
             }
         }}>
           <DialogTrigger asChild>
-            <Button disabled={isLoadingPrerequisites || allTeachers.length === 0 || allSubjects.length === 0 || allSemesters.length === 0}>
+            <Button disabled={isLoadingPrerequisites || prerequisitesNotReady}>
               <PlusCircle className="mr-2 h-4 w-4" /> New Assignment
             </Button>
           </DialogTrigger>
@@ -332,7 +338,7 @@ export default function AssignSubjectsPage() {
             </div>
             <DialogFooter>
               <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-              <Button onClick={handleAddAssignment} disabled={isSubmitting || isLoadingPrerequisites || allTeachers.length === 0 || allSubjects.length === 0 || allSemesters.length === 0}>
+              <Button onClick={handleAddAssignment} disabled={isSubmitting || isLoadingPrerequisites || prerequisitesNotReady}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Create Assignment
               </Button>
@@ -384,8 +390,8 @@ export default function AssignSubjectsPage() {
             </div>
           )}
           <DialogFooter>
-            <DialogClose asChild><Button variant="outline" onClick={() => setEditingAssignment(null)}>Cancel</Button></DialogClose>
-            <Button onClick={handleUpdateAssignment} disabled={isUpdating || isLoadingPrerequisites || !editingAssignment || allTeachers.length === 0 || allSubjects.length === 0 || allSemesters.length === 0}>
+            <DialogClose asChild><Button variant="outline" onClick={() => {setEditingAssignment(null); setIsEditDialogOpen(false);}}>Cancel</Button></DialogClose>
+            <Button onClick={handleUpdateAssignment} disabled={isUpdating || isLoadingPrerequisites || !editingAssignment || prerequisitesNotReady}>
               {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Update Assignment
             </Button>
@@ -396,7 +402,7 @@ export default function AssignSubjectsPage() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Current Assignments</CardTitle>
-          <CardDescription>List of subjects assigned to teachers for various semesters. If filters don't work, check console for missing Firestore index errors.</CardDescription>
+          <CardDescription>List of subjects assigned to teachers for various semesters. If filters don't work or data is missing, **check browser console (F12) for Firestore index errors or permission issues.**</CardDescription>
           <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             <div className="md:col-span-1">
               <Label htmlFor="teacherFilter" className="text-sm font-medium">Filter by Teacher</Label>
@@ -431,56 +437,62 @@ export default function AssignSubjectsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoadingAssignments || isLoadingPrerequisites ? (
+          {(isLoadingAssignments || isLoadingPrerequisites) ? (
             <div className="flex flex-col justify-center items-center h-60"> 
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
                 <p className="ml-3 text-lg">{isLoadingPrerequisites ? "Loading prerequisites..." : "Loading assignments..."}</p>
             </div>
           ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Teacher</TableHead>
-                <TableHead>Subject</TableHead>
-                <TableHead>Semester</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {assignments.length > 0 ? assignments.map((assignment: TeacherSubjectAssignment) => (
-                <TableRow key={assignment.id}>
-                  <TableCell className="font-medium">{assignment.teacherName}</TableCell>
-                  <TableCell>{assignment.subjectName}</TableCell>
-                  <TableCell>{assignment.semesterName}</TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <span className="sr-only">Open menu</span>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => openEditDialog(assignment)}>
-                          <Edit2 className="mr-2 h-4 w-4" /> Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => handleDeleteAssignment(assignment.id)}>
-                          <Trash2 className="mr-2 h-4 w-4" /> Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              )) : (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center h-24">
-                    {noAssignmentsMessage}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+            assignments.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Teacher</TableHead>
+                    <TableHead>Subject</TableHead>
+                    <TableHead>Semester</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {assignments.map((assignment: TeacherSubjectAssignment) => (
+                    <TableRow key={assignment.id}>
+                      <TableCell className="font-medium">{assignment.teacherName}</TableCell>
+                      <TableCell>{assignment.subjectName}</TableCell>
+                      <TableCell>{assignment.semesterName}</TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => openEditDialog(assignment)}>
+                              <Edit2 className="mr-2 h-4 w-4" /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => handleDeleteAssignment(assignment.id)}>
+                              <Trash2 className="mr-2 h-4 w-4" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <Alert variant="default" className="mt-4 border-blue-500 bg-blue-50">
+                <AlertTriangle className="h-5 w-5 text-blue-700" />
+                <AlertTitle className="font-semibold text-blue-800">No Assignments Found</AlertTitle>
+                <UiAlertDescription className="text-blue-700">
+                  {renderNoAssignmentsMessage()}
+                  <br />
+                  <strong>If data is expected but not showing, please check your browser's developer console (F12) for Firestore index errors or permission issues.</strong>
+                </UiAlertDescription>
+              </Alert>
+            )
           )}
         </CardContent>
       </Card>

@@ -7,16 +7,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose, DialogDescription as UiDialogDescription } from "@/components/ui/dialog"; // Renamed DialogDescription
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/auth-provider";
 import { addSemester, getSemesters, deleteSemester as deleteSemesterFromDb, updateSemester } from "@/lib/firestore/semesters";
 import type { Semester } from "@/lib/types";
-import { MoreHorizontal, PlusCircle, Search, Edit2, Trash2, CalendarDays, Loader2 } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Search, Edit2, Trash2, CalendarDays, Loader2, AlertTriangle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { format, parseISO, isValid } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
+import { Alert, AlertTitle, AlertDescription as UiAlertDescription } from "@/components/ui/alert";
+
 
 export default function ManageSemestersPage() {
   const { user, loading: authLoading } = useAuth();
@@ -60,17 +62,18 @@ export default function ManageSemestersPage() {
       console.log("ManageSemestersPage: Fetched semesters:", fetchedSemesters.length);
     } catch (error) {
       console.error("Error fetching semesters:", error);
-      toast({ title: "Error", description: "Could not fetch semesters. Check Firestore rules or index status.", variant: "destructive" });
+      toast({ title: "Error Fetching Semesters", description: "Could not fetch semesters. Check console for Firestore index or permission errors.", variant: "destructive" });
+      setSemesters([]);
     } finally {
       setIsLoading(false);
     }
   }, [toast]);
 
   useEffect(() => {
-    if (user && user.role === "admin") {
+    if (user && user.role === "admin" && !authLoading) {
       fetchSemesters();
     }
-  }, [user, fetchSemesters]);
+  }, [user, authLoading, fetchSemesters]);
 
 
   const handleAddSemester = async () => {
@@ -84,8 +87,8 @@ export default function ManageSemestersPage() {
       await addSemester({ 
         name: newSemesterName, 
         year: newSemesterYear,
-        startDate: newSemesterStartDate || undefined, // Store as undefined if empty
-        endDate: newSemesterEndDate || undefined,   // Store as undefined if empty
+        startDate: newSemesterStartDate || undefined, 
+        endDate: newSemesterEndDate || undefined,   
       });
       toast({ title: "Success", description: "Semester added successfully." });
       setNewSemesterName("");
@@ -96,7 +99,7 @@ export default function ManageSemestersPage() {
       fetchSemesters(); 
     } catch (error) {
       console.error("Error adding semester:", error);
-      toast({ title: "Error", description: "Could not add semester.", variant: "destructive" });
+      toast({ title: "Error", description: "Could not add semester (check console/permissions).", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -132,7 +135,7 @@ export default function ManageSemestersPage() {
         fetchSemesters();
     } catch (error) {
         console.error("Error updating semester:", error);
-        toast({ title: "Error", description: "Could not update semester.", variant: "destructive" });
+        toast({ title: "Error", description: "Could not update semester (check console/permissions).", variant: "destructive" });
     } finally {
         setIsUpdating(false);
     }
@@ -150,7 +153,7 @@ export default function ManageSemestersPage() {
       fetchSemesters(); 
     } catch (error) {
       console.error("Error deleting semester:", error);
-      toast({ title: "Error", description: "Could not delete semester. It might be in use or there was a server error.", variant: "destructive" });
+      toast({ title: "Error", description: "Could not delete semester. It might be in use or there was a server error (check console/permissions).", variant: "destructive" });
     }
   };
   
@@ -165,25 +168,26 @@ export default function ManageSemestersPage() {
     if (isValid(dateObj)) {
         return format(dateObj, "MMM dd, yyyy");
     }
+    // Fallback if dateString is already in a format that new Date() can parse but not parseISO
     const directDateObj = new Date(dateString);
     if (isValid(directDateObj)) {
         return format(directDateObj, "MMM dd, yyyy");
     }
+    console.warn("formatDateForDisplay encountered an invalid date string:", dateString);
     return "Invalid Date";
   };
 
   const formatDateForInput = (dateString?: string) => {
     if (!dateString) return "";
-    // Try parsing as ISO first, which is Firestore's Timestamp.toDate().toISOString() format
     const isoDate = parseISO(dateString);
     if (isValid(isoDate)) {
       return format(isoDate, "yyyy-MM-dd");
     }
-    // Fallback for other valid date string formats that `new Date()` might parse
     const directDate = new Date(dateString);
      if (isValid(directDate)) {
       return format(directDate, "yyyy-MM-dd");
     }
+    console.warn("formatDateForInput encountered an invalid date string:", dateString);
     return ""; 
   };
 
@@ -253,7 +257,7 @@ export default function ManageSemestersPage() {
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Edit Semester</DialogTitle>
-            <DialogDescription>Modify the details for this semester.</DialogDescription>
+            <UiDialogDescription>Modify the details for this semester.</UiDialogDescription>
           </DialogHeader>
           {editingSemester && (
             <div className="grid gap-4 py-4">
@@ -289,7 +293,7 @@ export default function ManageSemestersPage() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Semester List</CardTitle>
-          <CardDescription>All academic semesters in the system. Create Firestore index on 'year (desc), name (asc)' if initial load fails.</CardDescription>
+          <CardDescription>All academic semesters in the system.</CardDescription>
            <div className="relative mt-4">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
@@ -307,55 +311,61 @@ export default function ManageSemestersPage() {
                 <p className="ml-2">Loading semesters...</p>
             </div>
           ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Semester Name</TableHead>
-                <TableHead>Year</TableHead>
-                <TableHead>Start Date</TableHead>
-                <TableHead>End Date</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredSemesters.length > 0 ? filteredSemesters.map((semester: Semester) => (
-                <TableRow key={semester.id}>
-                  <TableCell className="font-medium">{semester.name}</TableCell>
-                  <TableCell>{semester.year}</TableCell>
-                  <TableCell>{formatDateForDisplay(semester.startDate)}</TableCell>
-                  <TableCell>{formatDateForDisplay(semester.endDate)}</TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <span className="sr-only">Open menu</span>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => openEditDialog(semester)}>
-                          <Edit2 className="mr-2 h-4 w-4" /> Edit Semester
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => console.log("Set academic calendar for:", semester.id) /* TODO: Implement Calendar setting */}>
-                          <CalendarDays className="mr-2 h-4 w-4" /> Set Academic Calendar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => handleDeleteSemester(semester.id)}>
-                          <Trash2 className="mr-2 h-4 w-4" /> Delete Semester
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              )) : (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center h-24">
-                    {semesters.length === 0 && !searchTerm ? "No semesters found. Try adding a new semester." : "No semesters match your search. Clear search or add a semester."}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+            semesters.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Semester Name</TableHead>
+                    <TableHead>Year</TableHead>
+                    <TableHead>Start Date</TableHead>
+                    <TableHead>End Date</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredSemesters.map((semester: Semester) => (
+                    <TableRow key={semester.id}>
+                      <TableCell className="font-medium">{semester.name}</TableCell>
+                      <TableCell>{semester.year}</TableCell>
+                      <TableCell>{formatDateForDisplay(semester.startDate)}</TableCell>
+                      <TableCell>{formatDateForDisplay(semester.endDate)}</TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => openEditDialog(semester)}>
+                              <Edit2 className="mr-2 h-4 w-4" /> Edit Semester
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => console.log("Set academic calendar TODO for:", semester.id) }>
+                              <CalendarDays className="mr-2 h-4 w-4" /> Set Academic Calendar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => handleDeleteSemester(semester.id)}>
+                              <Trash2 className="mr-2 h-4 w-4" /> Delete Semester
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <Alert variant="default" className="mt-4 border-blue-500 bg-blue-50">
+                <AlertTriangle className="h-5 w-5 text-blue-700" />
+                <AlertTitle className="font-semibold text-blue-800">No Semesters Found</AlertTitle>
+                <UiAlertDescription className="text-blue-700">
+                  {searchTerm ? "No semesters match your search." : "No semesters found. Try adding a new semester."}
+                  <br />
+                  <strong>If data is expected but not showing, please check your browser's developer console (F12) for Firestore index errors or permission issues.</strong>
+                </UiAlertDescription>
+              </Alert>
+            )
           )}
         </CardContent>
       </Card>
