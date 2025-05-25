@@ -4,16 +4,48 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useAuth } from "@/contexts/auth-provider";
-import { BarChart, BookUser, GraduationCap, Users, NotebookPen, ClipboardEdit, Presentation, Building, Activity, Bell, Newspaper, UsersRound } from "lucide-react"; // Added Bell
+import { getUsers } from "@/lib/firestore/users"; // Import getUsers
+import type { UserProfile } from "@/lib/types";
+import { BarChart, BookUser, GraduationCap, Users, NotebookPen, ClipboardEdit, Presentation, UsersRound, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import Image from "next/image";
+import { useEffect, useState, useCallback } from "react"; // Import useEffect, useState, useCallback
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const [totalUsers, setTotalUsers] = useState<number | null>(null);
+  const [totalStudents, setTotalStudents] = useState<number | null>(null);
+  const [totalTeachers, setTotalTeachers] = useState<number | null>(null);
+  const [isLoadingCounts, setIsLoadingCounts] = useState(true);
+
+  const fetchUserCounts = useCallback(async () => {
+    console.log("DashboardPage: fetchUserCounts triggered");
+    setIsLoadingCounts(true);
+    try {
+      const allUsers = await getUsers();
+      const students = await getUsers("student");
+      const teachers = await getUsers("teacher");
+      
+      setTotalUsers(allUsers.length);
+      setTotalStudents(students.length);
+      setTotalTeachers(teachers.length);
+      console.log("DashboardPage: User counts fetched - Total:", allUsers.length, "Students:", students.length, "Teachers:", teachers.length);
+    } catch (error) {
+      console.error("Error fetching user counts:", error);
+      // Optionally set an error state or show a toast
+    } finally {
+      setIsLoadingCounts(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (user) { // Fetch counts if user is loaded
+      fetchUserCounts();
+    }
+  }, [user, fetchUserCounts]);
+
 
   if (!user) {
-    return <p>Loading user data...</p>;
+    return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /><p className="ml-2">Loading user data...</p></div>;
   }
 
   const getRoleSpecificWelcome = () => {
@@ -58,6 +90,12 @@ export default function DashboardPage() {
 
   const { title, description, quickLinks } = getRoleSpecificWelcome();
 
+  const countCards = [
+    { title: "Total Users", count: totalUsers, icon: UsersRound, color: "text-blue-600" },
+    { title: "Total Students", count: totalStudents, icon: GraduationCap, color: "text-green-600" },
+    { title: "Total Teachers", count: totalTeachers, icon: BookUser, color: "text-purple-600" },
+  ];
+
   return (
     <div className="space-y-8">
       <Card className="shadow-xl border-primary border-l-4">
@@ -71,6 +109,31 @@ export default function DashboardPage() {
             </p>
         </CardContent>
       </Card>
+
+      <div className="grid gap-6 md:grid-cols-3">
+        {countCards.map(item => {
+          const Icon = item.icon;
+          return (
+            <Card key={item.title} className="shadow-lg hover:shadow-xl transition-shadow duration-300 ease-in-out">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">{item.title}</CardTitle>
+                <Icon className={`h-5 w-5 ${item.color}`} />
+              </CardHeader>
+              <CardContent>
+                {isLoadingCounts ? (
+                   <Loader2 className="h-7 w-7 animate-spin" />
+                ) : (
+                  <div className={`text-3xl font-bold ${item.color}`}>{item.count ?? "N/A"}</div>
+                )}
+                <p className="text-xs text-muted-foreground pt-1">
+                  Current count of {item.title.toLowerCase()} in the system.
+                </p>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
 
       {quickLinks && quickLinks.length > 0 && (
         <div>
@@ -97,55 +160,6 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-      
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-         <Card className="shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Campus News & Events</CardTitle>
-                <Newspaper className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-                <Image 
-                  src="https://placehold.co/600x300.png" 
-                  alt="Campus Life" 
-                  width={600} 
-                  height={300} 
-                  className="rounded-lg object-cover w-full mb-2"
-                  data-ai-hint="university students" 
-                />
-                <p className="text-xs text-muted-foreground">Stay updated with the latest happenings and upcoming events on campus.</p>
-                <Button variant="link" className="px-0 text-xs h-auto mt-1">Read More</Button>
-            </CardContent>
-        </Card>
-        <Card className="shadow-md hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">User Statistics</CardTitle>
-            <UsersRound className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <Image 
-                src="https://placehold.co/600x300.png" 
-                alt="User Analytics" 
-                width={600} 
-                height={300} 
-                className="rounded-lg object-cover w-full mb-2"
-                data-ai-hint="user data chart" 
-            />
-             <p className="text-xs text-muted-foreground">Overview of active users and system engagement metrics.</p>
-             <Button variant="link" className="px-0 text-xs h-auto mt-1">View Details</Button>
-          </CardContent>
-        </Card>
-        <Card className="shadow-md hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Notifications</CardTitle>
-             <Bell className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground py-4">You have no new notifications at this time.</p>
-            <Button variant="outline" size="sm" className="w-full">View All Notifications</Button>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }

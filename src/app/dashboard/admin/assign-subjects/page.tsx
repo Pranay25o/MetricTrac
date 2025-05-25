@@ -85,9 +85,9 @@ export default function AssignSubjectsPage() {
       setAllTeachers(teachersData);
       setAllSubjects(subjectsData);
       setAllSemesters(semestersData);
-      console.log("AssignSubjectsPage: Fetched prerequisite data:", { teachersCount: teachersData.length, subjectsCount: subjectsData.length, semestersCount: semestersData.length });
+      console.log("AssignSubjectsPage: Fetched prerequisite data - Teachers:", teachersData.length, "Subjects:", subjectsData.length, "Semesters:", semestersData.length);
     } catch (error) {
-      console.error("Error fetching prerequisite data:", error);
+      console.error("AssignSubjectsPage: Error fetching prerequisite data:", error);
       toast({ title: "Error Loading Prerequisites", description: "Could not load teachers, subjects, or semesters. Check console for details (possible index or permission issues).", variant: "destructive" });
     } finally {
       setIsLoadingPrerequisites(false);
@@ -95,7 +95,7 @@ export default function AssignSubjectsPage() {
   }, [toast]);
   
   const fetchAssignments = useCallback(async () => {
-    console.log("AssignSubjectsPage: fetchAssignments triggered with filters:", { filterTeacher, filterSubject, filterSemester });
+    console.log("AssignSubjectsPage: fetchAssignments triggered with filters - Teacher:", filterTeacher, "Subject:", filterSubject, "Semester:", filterSemester);
     setIsLoadingAssignments(true);
     try {
       const fetchedAssignments = await getTeacherAssignments({
@@ -104,9 +104,9 @@ export default function AssignSubjectsPage() {
         semesterId: filterSemester || undefined,
       });
       setAssignments(fetchedAssignments);
-      console.log("AssignSubjectsPage: Fetched assignments:", fetchedAssignments.length, fetchedAssignments);
+      console.log("AssignSubjectsPage: Fetched assignments count:", fetchedAssignments.length, "Data:", fetchedAssignments);
     } catch (error: any) {
-      console.error("Error fetching assignments:", error);
+      console.error("AssignSubjectsPage: Error fetching assignments:", error);
       toast({ title: "Error Fetching Assignments", description: error.message || "Could not load assignments. Check console for details (you might need to create Firestore indexes or check permissions).", variant: "destructive" });
       setAssignments([]); 
     } finally {
@@ -122,7 +122,7 @@ export default function AssignSubjectsPage() {
   }, [user, authLoading, fetchPrerequisiteData]);
   
   useEffect(() => {
-     console.log("AssignSubjectsPage: Assignment fetch useEffect triggered. User:", !!user, "Role:", user?.role, "LoadingPrerequisites:", isLoadingPrerequisites, "Filters:", { filterTeacher, filterSubject, filterSemester });
+     console.log("AssignSubjectsPage: Assignment fetch useEffect triggered. User:", !!user, "Role:", user?.role, "LoadingPrerequisites:", isLoadingPrerequisites, "AuthLoading:", authLoading, "Filters:", { filterTeacher, filterSubject, filterSemester });
     if (user && user.role === "admin" && !authLoading && !isLoadingPrerequisites) { 
      console.log("AssignSubjectsPage: Conditions met, calling fetchAssignments.");
      fetchAssignments();
@@ -134,13 +134,13 @@ export default function AssignSubjectsPage() {
   }, [user, authLoading, filterTeacher, filterSubject, filterSemester, fetchAssignments, isLoadingPrerequisites]); 
 
   useEffect(() => {
-    console.log("Filter Teacher changed:", filterTeacher);
+    console.log("AssignSubjectsPage: Filter Teacher changed to:", filterTeacher);
   }, [filterTeacher]);
   useEffect(() => {
-    console.log("Filter Subject changed:", filterSubject);
+    console.log("AssignSubjectsPage: Filter Subject changed to:", filterSubject);
   }, [filterSubject]);
   useEffect(() => {
-    console.log("Filter Semester changed:", filterSemester);
+    console.log("AssignSubjectsPage: Filter Semester changed to:", filterSemester);
   }, [filterSemester]);
 
 
@@ -185,8 +185,8 @@ export default function AssignSubjectsPage() {
       setIsAddDialogOpen(false);
       fetchAssignments(); 
     } catch (error) {
-      console.error("Error adding assignment:", error);
-      toast({ title: "Error", description: "Could not add assignment. It might already exist or there was a server error (check console/permissions).", variant: "destructive" });
+      console.error("AssignSubjectsPage: Error adding assignment:", error);
+      toast({ title: "Error Adding Assignment", description: "Could not add assignment. It might already exist or there was a server error (check console/permissions).", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -207,7 +207,7 @@ export default function AssignSubjectsPage() {
       return;
     }
     
-    console.log("AssignSubjectsPage: Attempting to update assignment ID:", editingAssignment.id);
+    console.log("AssignSubjectsPage: Attempting to update assignment ID:", editingAssignment.id, "with new TeacherUID:", editAssignmentTeacherUid, "SubjectID:", editAssignmentSubjectId, "SemesterID:", editAssignmentSemesterId);
     setIsUpdating(true);
 
     try {
@@ -237,8 +237,8 @@ export default function AssignSubjectsPage() {
       setEditingAssignment(null); 
       fetchAssignments();
     } catch (error) {
-      console.error("Error updating assignment:", error);
-      toast({ title: "Error", description: "Could not update assignment (check console/permissions).", variant: "destructive" });
+      console.error("AssignSubjectsPage: Error updating assignment:", error);
+      toast({ title: "Error Updating Assignment", description: "Could not update assignment (check console/permissions).", variant: "destructive" });
     } finally {
       setIsUpdating(false);
     }
@@ -246,7 +246,7 @@ export default function AssignSubjectsPage() {
 
   const handleDeleteAssignment = async (assignmentId: string) => {
     console.log("AssignSubjectsPage: Attempting to delete assignment:", assignmentId);
-    if (!window.confirm("Are you sure you want to delete this assignment?")) {
+    if (!window.confirm("Are you sure you want to delete this assignment? This action cannot be undone.")) {
         console.log("AssignSubjectsPage: Deletion cancelled by user for assignment:", assignmentId);
         return;
     }
@@ -256,8 +256,8 @@ export default function AssignSubjectsPage() {
       toast({ title: "Success", description: "Assignment deleted successfully." });
       fetchAssignments(); 
     } catch (error) {
-      console.error("Error deleting assignment:", error);
-      toast({ title: "Error", description: "Could not delete assignment (check console/permissions).", variant: "destructive" });
+      console.error("AssignSubjectsPage: Error deleting assignment:", error);
+      toast({ title: "Error Deleting Assignment", description: "Could not delete assignment (check console/permissions).", variant: "destructive" });
     }
   };
   
@@ -490,7 +490,7 @@ export default function AssignSubjectsPage() {
                 <UiAlertDescription className="text-blue-700">
                   {renderNoAssignmentsMessage()}
                   <br />
-                  <strong>If data is expected but not showing, please check your browser's developer console (F12) for Firestore index errors or permission issues.</strong>
+                  <strong>If data is expected but not showing, or filters don't work, please check your browser's developer console (F12) for Firestore index errors or permission issues.</strong>
                 </UiAlertDescription>
               </Alert>
             )
