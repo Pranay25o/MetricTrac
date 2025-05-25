@@ -17,7 +17,7 @@ import { addTeacherAssignment, getTeacherAssignments, deleteTeacherAssignment as
 import type { TeacherSubjectAssignment, UserProfile, Subject, Semester } from "@/lib/types";
 import { MoreHorizontal, PlusCircle, Edit2, Trash2, Filter, Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function AssignSubjectsPage() {
@@ -64,6 +64,7 @@ export default function AssignSubjectsPage() {
   useEffect(() => {
     const teacherIdFromQuery = searchParams.get("teacherId");
     if (teacherIdFromQuery) {
+      console.log("AssignSubjectsPage: Setting filterTeacher from query param:", teacherIdFromQuery);
       setFilterTeacher(teacherIdFromQuery);
     }
   }, [searchParams]);
@@ -99,7 +100,7 @@ export default function AssignSubjectsPage() {
         semesterId: filterSemester || undefined,
       });
       setAssignments(fetchedAssignments);
-      console.log("AssignSubjectsPage: Fetched assignments:", fetchedAssignments);
+      console.log("AssignSubjectsPage: Fetched assignments:", fetchedAssignments.length, fetchedAssignments);
     } catch (error: any) {
       console.error("Error fetching assignments:", error);
       toast({ title: "Error Fetching Assignments", description: error.message || "Could not load assignments. Check console for details (you might need to create Firestore indexes).", variant: "destructive" });
@@ -111,15 +112,32 @@ export default function AssignSubjectsPage() {
 
   useEffect(() => {
     if (user && user.role === "admin") {
+      console.log("AssignSubjectsPage: User is admin, fetching prerequisites.");
       fetchPrerequisiteData();
     }
   }, [user, fetchPrerequisiteData]);
   
   useEffect(() => {
-    if (user && user.role === "admin" && !isLoadingPrerequisites) { // Fetch assignments only after prerequisites are loaded
+     console.log("AssignSubjectsPage: Assignment fetch useEffect triggered. User:", !!user, "Role:", user?.role, "LoadingPrerequisites:", isLoadingPrerequisites, "Filters:", { filterTeacher, filterSubject, filterSemester });
+    if (user && user.role === "admin" && !isLoadingPrerequisites) { 
+     console.log("AssignSubjectsPage: Conditions met, calling fetchAssignments.");
      fetchAssignments();
+    } else {
+      console.log("AssignSubjectsPage: Conditions NOT met for fetching assignments.");
+      if(isLoadingPrerequisites) console.log("AssignSubjectsPage: Still loading prerequisites.");
     }
   }, [user, filterTeacher, filterSubject, filterSemester, fetchAssignments, isLoadingPrerequisites]); 
+
+  useEffect(() => {
+    console.log("Filter Teacher changed:", filterTeacher);
+  }, [filterTeacher]);
+  useEffect(() => {
+    console.log("Filter Subject changed:", filterSubject);
+  }, [filterSubject]);
+  useEffect(() => {
+    console.log("Filter Semester changed:", filterSemester);
+  }, [filterSemester]);
+
 
   const handleAddAssignment = async () => {
     if (!newAssignmentTeacherUid || !newAssignmentSubjectId || !newAssignmentSemesterId) {
@@ -211,7 +229,7 @@ export default function AssignSubjectsPage() {
       console.log("AssignSubjectsPage: Successfully updated assignment:", editingAssignment.id);
       toast({ title: "Success", description: "Assignment updated successfully." });
       setIsEditDialogOpen(false);
-      setEditingAssignment(null); // Clear editing state
+      setEditingAssignment(null); 
       fetchAssignments();
     } catch (error) {
       console.error("Error updating assignment:", error);
@@ -238,16 +256,19 @@ export default function AssignSubjectsPage() {
     }
   };
   
-  let noAssignmentsMessage = "No assignments found.";
-  if (!isLoadingAssignments && !isLoadingPrerequisites && assignments.length === 0) {
-    if (filterTeacher || filterSubject || filterSemester) {
-      noAssignmentsMessage = "No assignments match your current filters. Try clearing them or check console for index errors if data should exist.";
-    } else if (allTeachers.length === 0 || allSubjects.length === 0 || allSemesters.length === 0) {
-      noAssignmentsMessage = "Cannot create assignments yet. Please ensure teachers, subjects, and semesters have been added to the system.";
-    } else {
-      noAssignmentsMessage = "No assignments have been created yet. Click 'New Assignment' to add one.";
+  let noAssignmentsMessage = "Loading assignments or prerequisites...";
+  if (!isLoadingAssignments && !isLoadingPrerequisites) {
+    if (assignments.length === 0) {
+      if (filterTeacher || filterSubject || filterSemester) {
+        noAssignmentsMessage = "No assignments match your current filters. Try clearing them or check console for index errors if data should exist.";
+      } else if (allTeachers.length === 0 || allSubjects.length === 0 || allSemesters.length === 0) {
+        noAssignmentsMessage = "Cannot create assignments yet. Please ensure teachers, subjects, and semesters have been added to the system.";
+      } else {
+        noAssignmentsMessage = "No assignments have been created yet. Click 'New Assignment' to add one.";
+      }
     }
   }
+
 
   if (authLoading || !user || user.role !== "admin") {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /><p className="ml-2">Loading or unauthorized...</p></div>;
@@ -262,14 +283,14 @@ export default function AssignSubjectsPage() {
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={(isOpen) => {
             setIsAddDialogOpen(isOpen);
-            if (!isOpen) { // Reset form on close
+            if (!isOpen) { 
                 setNewAssignmentTeacherUid("");
                 setNewAssignmentSubjectId("");
                 setNewAssignmentSemesterId("");
             }
         }}>
           <DialogTrigger asChild>
-            <Button disabled={isLoadingPrerequisites}>
+            <Button disabled={isLoadingPrerequisites || allTeachers.length === 0 || allSubjects.length === 0 || allSemesters.length === 0}>
               <PlusCircle className="mr-2 h-4 w-4" /> New Assignment
             </Button>
           </DialogTrigger>
@@ -320,10 +341,9 @@ export default function AssignSubjectsPage() {
         </Dialog>
       </div>
 
-      {/* Edit Assignment Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {
         setIsEditDialogOpen(isOpen);
-        if (!isOpen) setEditingAssignment(null); // Clear editing state when dialog closes
+        if (!isOpen) setEditingAssignment(null); 
       }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
