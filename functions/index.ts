@@ -18,7 +18,7 @@ const app = next({
 const handle = app.getRequestHandler();
 
 export const nextjsServer = functions.https.onRequest(async (req, res) => {
-  console.log('nextjsServer: Function triggered for URL:', req.url);
+  console.log('nextjsServer: HTTP function triggered for URL:', req.url); // More specific initial log
   try {
     // Ensure Next.js is prepared before handling requests
     console.log('nextjsServer: Preparing Next.js app...');
@@ -26,10 +26,10 @@ export const nextjsServer = functions.https.onRequest(async (req, res) => {
     console.log('nextjsServer: Next.js app prepared successfully.');
     return handle(req, res);
   } catch (error) {
-    console.error('nextjsServer: Critical error in Next.js request handler:', error);
-    // It's good practice to also log the error to Firebase Functions logs
-    functions.logger.error('nextjsServer: Critical error in Next.js request handler:', error);
+    console.error('nextjsServer: Critical error during Next.js request handling or app preparation:', error);
+    // It's good practice to also log the error to Firebase Functions logs (Firebase does this automatically for console.error)
+    // functions.logger.error('nextjsServer: Critical error:', error); // This is redundant if using console.error
     // Send a generic 500 error response
-    res.status(500).send('Internal Server Error - Please check function logs for details.');
+    res.status(500).send('Internal Server Error - Please check function logs in Firebase Console for details.');
   }
 });
