@@ -9,16 +9,17 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/auth-provider";
 import { MeritTracLogo } from "@/components/icons/logo";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation"; 
-import { useEffect, useState } from "react";
-import { Loader2, LogIn, AlertCircle } from "lucide-react"; 
+import { useRouter, useSearchParams } from "next/navigation";
+import React, { useEffect, useState, Suspense } from "react"; // Import Suspense and React
+import { Loader2, LogIn, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-export default function LoginPage() {
+// Inner component containing the original logic and JSX
+function LoginPageContent() {
   const { loginUser, user, loading } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams(); 
+  const searchParams = useSearchParams();
   const { toast } = useToast();
 
   const [email, setEmail] = useState("");
@@ -27,21 +28,30 @@ export default function LoginPage() {
   const [pageAlert, setPageAlert] = useState<{ title: string, description: string, variant?: "default" | "destructive" } | null>(null);
 
   useEffect(() => {
-    const messageCode = searchParams.get('auth_message');
-    if (messageCode === 'admin_only_logout') { // This specific message might become obsolete with general login
-      setPageAlert({
-        title: "Logged Out",
-        description: "You have been logged out. Please log in again if you wish to continue."
-      });
-      router.replace('/', { scroll: false });
+    // If auth is still loading, or searchParams is not yet available (though Suspense should handle this part), defer.
+    if (loading || !searchParams) {
+      return;
     }
-  }, [searchParams, router]);
+
+    const messageCode = searchParams.get('auth_message');
+    if (messageCode === 'admin_only_logout') {
+      // Only set alert and replace if not already processing another alert
+      if (!pageAlert) {
+        setPageAlert({
+          title: "Logged Out",
+          description: "You have been logged out. Please log in again if you wish to continue."
+        });
+        // Clear the query parameter to prevent the message from showing up on refresh
+        router.replace('/', { scroll: false });
+      }
+    }
+  }, [searchParams, router, loading, pageAlert]); // Added loading and pageAlert to dependencies
 
   useEffect(() => {
-    if (!loading && user) {
+    if (!loading && user && !pageAlert) { // Ensure pageAlert isn't set, to avoid redirect loop if alert is for this page
       router.push('/dashboard');
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, pageAlert]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,17 +60,20 @@ export default function LoginPage() {
       return;
     }
     setIsSubmitting(true);
-    setPageAlert(null); 
+    setPageAlert(null);
     try {
       await loginUser(email, password);
+      // Successful login will be handled by the useEffect above to redirect.
     } catch (error: any) {
-      // Errors are typically handled within loginUser and shown as toasts
+      // Errors are typically handled within loginUser and shown as toasts by AuthProvider
     } finally {
-      setIsSubmitting(false); 
+      setIsSubmitting(false);
     }
   };
-  
-  if (loading || (!loading && user && !pageAlert)) { 
+
+  // This initial loading state is for the AuthProvider's loading state
+  // or if a user is already logged in and redirecting.
+  if (loading || (!loading && user && !pageAlert) ) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-6 bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -81,13 +94,13 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           {pageAlert && (
-            <Alert 
-              variant={pageAlert.variant || "default"} 
-              className={`mb-4 ${pageAlert.variant === "destructive" ? 
-                "border-destructive bg-destructive/10 text-destructive dark:border-destructive dark:bg-destructive/20 dark:text-destructive" : 
+            <Alert
+              variant={pageAlert.variant || "default"}
+              className={`mb-4 ${pageAlert.variant === "destructive" ?
+                "border-destructive bg-destructive/10 text-destructive dark:border-destructive dark:bg-destructive/20 dark:text-destructive" :
                 "border-yellow-400 bg-yellow-50 text-yellow-700 dark:border-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-300"}`}
             >
-              <AlertCircle className="h-4 w-4" /> 
+              <AlertCircle className="h-4 w-4" />
               <AlertTitle className="font-semibold">{pageAlert.title}</AlertTitle>
               <AlertDescription>
                 {pageAlert.description}
@@ -97,30 +110,30 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input 
-                id="email" 
-                type="email" 
-                placeholder="you@example.com" // Changed placeholder
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required 
-                disabled={isSubmitting || loading}
+                required
+                disabled={isSubmitting}
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input 
-                id="password" 
-                type="password" 
-                placeholder="••••••••" 
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required 
-                disabled={isSubmitting || loading}
+                required
+                disabled={isSubmitting}
               />
             </div>
-            <Button type="submit" className="w-full" size="lg" disabled={isSubmitting || loading}>
-              {(isSubmitting || loading) ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <LogIn className="mr-2 h-5 w-5" />}
+            <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <LogIn className="mr-2 h-5 w-5" />}
               Log In
             </Button>
           </form>
@@ -136,5 +149,21 @@ export default function LoginPage() {
         <p>&copy; {new Date().getFullYear()} MeritTrac. All rights reserved.</p>
       </footer>
     </div>
+  );
+}
+
+// Default export - LoginPage wrapper with Suspense
+export default function LoginPage() {
+  const SuspenseFallback = () => (
+    <div className="flex min-h-screen flex-col items-center justify-center p-6 bg-background">
+      <Loader2 className="h-16 w-16 animate-spin text-primary" />
+      <p className="mt-4 text-foreground">Loading page...</p>
+    </div>
+  );
+
+  return (
+    <Suspense fallback={<SuspenseFallback />}>
+      <LoginPageContent />
+    </Suspense>
   );
 }
