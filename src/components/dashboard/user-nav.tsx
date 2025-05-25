@@ -13,12 +13,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/auth-provider";
-import { LogOut, User as UserIcon, Settings, ChevronDown } from "lucide-react";
+import { LogOut, ChevronDown } from "lucide-react"; // Removed UserIcon, Settings
 import { useToast } from "@/hooks/use-toast";
 
 export function UserNav() {
   const { user, logout } = useAuth();
-  const { toast } = useToast();
+  const { toast } = useToast(); // Keep toast if other features might use it
 
   if (!user) {
     return null;
@@ -33,12 +33,12 @@ export function UserNav() {
     return initials;
   };
 
-  const handleComingSoon = () => {
-    toast({
-      title: "Feature Coming Soon",
-      description: "This feature is currently under development.",
-    });
-  };
+  // const handleComingSoon = () => {
+  //   toast({
+  //     title: "Feature Coming Soon",
+  //     description: "This feature is currently under development.",
+  //   });
+  // };
 
   return (
     <DropdownMenu>
@@ -66,7 +66,8 @@ export function UserNav() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuGroup>
+        {/* Profile and Settings options removed as requested */}
+        {/* <DropdownMenuGroup>
           <DropdownMenuItem onClick={handleComingSoon}>
             <UserIcon className="mr-2 h-4 w-4" />
             <span>Profile</span>
@@ -76,7 +77,7 @@ export function UserNav() {
             <span>Settings</span>
           </DropdownMenuItem>
         </DropdownMenuGroup>
-        <DropdownMenuSeparator />
+        <DropdownMenuSeparator /> */}
         <DropdownMenuItem onClick={logout}>
           <LogOut className="mr-2 h-4 w-4" />
           <span>Log out</span>
@@ -85,3 +86,4 @@ export function UserNav() {
     </DropdownMenu>
   );
 }
+

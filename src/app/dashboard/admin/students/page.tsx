@@ -8,13 +8,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/contexts/auth-provider";
-import { getUsers } from "@/lib/firestore/users"; // Removed deleteUserFromFirestore
+import { getUsers, deleteUserFromFirestore } from "@/lib/firestore/users"; 
 import type { UserProfile } from "@/lib/types";
-import { MoreHorizontal, PlusCircle, Search, FileDown, Eye, Edit2, Loader2, AlertTriangle } from "lucide-react"; // Added Edit2, removed Trash2
+import { MoreHorizontal, PlusCircle, Search, FileDown, Eye, Trash2, Loader2, AlertTriangle } from "lucide-react"; // Changed Edit2 to Trash2
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
-// Removed Dialog related imports as delete is removed
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogDescription as UiDialogDescription } from "@/components/ui/dialog"; // Re-added Dialog imports
 import { Alert, AlertTitle, AlertDescription as UiAlertDescription } from "@/components/ui/alert";
 
 
@@ -27,10 +27,10 @@ export default function ManageStudentsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Delete functionality removed for now
-  // const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  // const [studentToDelete, setStudentToDelete] = useState<UserProfile | null>(null);
-  // const [isDeleting, setIsDeleting] = useState(false);
+  // Reinstated Delete Dialog State
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState<UserProfile | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchStudents = useCallback(async () => {
     console.log("ManageStudentsPage: fetchStudents triggered");
@@ -55,33 +55,32 @@ export default function ManageStudentsPage() {
     }
   }, [user, authLoading, fetchStudents]);
 
-  // Delete functionality removed for now
-  // const openDeleteDialog = (student: UserProfile) => {
-  //   setStudentToDelete(student);
-  //   setIsDeleteDialogOpen(true);
-  // };
+  const openDeleteDialog = (student: UserProfile) => {
+    setStudentToDelete(student);
+    setIsDeleteDialogOpen(true);
+  };
 
-  // const handleDeleteStudent = async () => {
-  //   if (!studentToDelete) return;
-  //   console.log("ManageStudentsPage: Attempting to delete student:", studentToDelete.uid, studentToDelete.name);
-  //   setIsDeleting(true);
-  //   try {
-  //     await deleteUserFromFirestore(studentToDelete.uid);
-  //     toast({ title: "Student Deleted", description: `${studentToDelete.name} has been removed from the database. Remember to delete from Firebase Authentication manually if needed.` });
-  //     fetchStudents(); 
-  //     console.log("ManageStudentsPage: Student deleted successfully from Firestore:", studentToDelete.uid);
-  //   } catch (error: any) {
-  //     console.error("Error deleting student from Firestore:", error);
-  //     toast({ title: "Error Deleting Student", description: `Could not delete ${studentToDelete.name}. Check console for Firestore errors (e.g., permissions or function issues). Error: ${error.message}`, variant: "destructive" });
-  //   } finally {
-  //     setIsDeleting(false);
-  //     setIsDeleteDialogOpen(false);
-  //     setStudentToDelete(null);
-  //   }
-  // };
-  
-  const handleEditStudent = () => {
-    toast({ title: "Feature Coming Soon", description: "Editing student details will be available in a future update." });
+  const handleDeleteStudent = async () => {
+    if (!studentToDelete) return;
+    console.log("ManageStudentsPage: Attempting to delete student from Firestore:", studentToDelete.uid, studentToDelete.name);
+    setIsDeleting(true);
+    try {
+      await deleteUserFromFirestore(studentToDelete.uid);
+      toast({ title: "Student Deleted from Database", description: `${studentToDelete.name} has been removed from the database. Remember to delete from Firebase Authentication manually if needed.` });
+      fetchStudents(); 
+      console.log("ManageStudentsPage: Student document deleted successfully from Firestore:", studentToDelete.uid);
+    } catch (error: any) {
+      console.error("ManageStudentsPage: Error deleting student from Firestore:", error);
+      toast({ 
+        title: "Error Deleting Student Record", 
+        description: `Could not delete ${studentToDelete.name}'s record. Check console for Firestore errors (e.g., permissions). Error: ${error.message}`, 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteDialogOpen(false);
+      setStudentToDelete(null);
+    }
   };
   
   const filteredStudents = useMemo(() => students.filter(student => 
@@ -111,7 +110,30 @@ export default function ManageStudentsPage() {
         </div>
       </div>
 
-       {/* Delete Student Confirmation Dialog Removed */}
+      {/* Delete Student Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={(isOpen) => {
+        setIsDeleteDialogOpen(isOpen);
+        if(!isOpen) setStudentToDelete(null);
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Student Record</DialogTitle>
+            <UiDialogDescription>
+              Are you sure you want to delete the database record for {studentToDelete?.name}? <br/>
+              PRN: {studentToDelete?.prn || 'N/A'} <br />
+              This action cannot be undone from here. <br />
+              <strong>Important: This only deletes the student's record from the database. You must manually delete their account from Firebase Authentication.</strong>
+            </UiDialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+            <Button variant="destructive" onClick={handleDeleteStudent} disabled={isDeleting}>
+              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Delete Student Record
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Card className="shadow-lg">
         <CardHeader>
@@ -163,8 +185,8 @@ export default function ManageStudentsPage() {
                             <DropdownMenuItem onClick={() => router.push(`/dashboard/student/performance-analysis?studentId=${student.uid}&studentName=${encodeURIComponent(student.name)}`)}>
                               <Eye className="mr-2 h-4 w-4" /> View Performance
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={handleEditStudent}>
-                              <Edit2 className="mr-2 h-4 w-4" /> Edit Student
+                            <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => openDeleteDialog(student)}>
+                              <Trash2 className="mr-2 h-4 w-4" /> Delete Student
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
