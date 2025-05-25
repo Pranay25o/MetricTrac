@@ -6,9 +6,17 @@ import type { UserProfile, Role } from '@/lib/types';
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { onAuthStateChanged, signOut, type User as FirebaseUser, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { 
+  onAuthStateChanged, 
+  signOut, 
+  type User as FirebaseUser, 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword,
+  setPersistence, // Import setPersistence
+  browserLocalPersistence // Import browserLocalPersistence
+} from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
 interface AuthContextType {
@@ -19,8 +27,6 @@ interface AuthContextType {
   logout: () => void;
   role: Role | null;
 }
-
-// const ADMIN_EMAIL = "admin@pescoe.com"; // No longer needed for login restriction here
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -43,13 +49,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log('[AuthProvider] Firestore user document exists for UID ' + firebaseUser.uid + '?', userDocSnap.exists());
 
           if (userDocSnap.exists()) {
-            const userData = userDocSnap.data() as Omit<UserProfile, 'uid'>;
-            console.log('[AuthProvider] User data from Firestore:', userData);
-            setUser({ uid: firebaseUser.uid, ...userData } as UserProfile);
-            console.log('[AuthProvider] User profile set in context:', { uid: firebaseUser.uid, ...userData });
+            const userDataFromDb = userDocSnap.data() as Omit<UserProfile, 'uid' | 'createdAt'> & { createdAt?: Timestamp };
+            const userProfile: UserProfile = { 
+              uid: firebaseUser.uid, 
+              email: userDataFromDb.email, // Ensure email comes from Firestore record if it exists
+              name: userDataFromDb.name,
+              role: userDataFromDb.role,
+              prn: userDataFromDb.prn,
+              avatarUrl: userDataFromDb.avatarUrl,
+            };
+            console.log('[AuthProvider] User data from Firestore:', userProfile);
+            setUser(userProfile);
+            console.log('[AuthProvider] User profile set in context:', userProfile);
           } else {
-            console.log('[AuthProvider] User profile NOT FOUND in Firestore for UID:', firebaseUser.uid, '. Logging out.');
-            toast({ title: "Profile Error", description: "User profile not found in database. Please contact support if this persists. Logging out.", variant: "destructive"});
+            console.warn('[AuthProvider] User profile NOT FOUND in Firestore for UID:', firebaseUser.uid, '. Logging out.');
+            toast({ title: "Profile Error", description: "User profile not found in database. Logging out.", variant: "destructive"});
             await signOut(auth);
             setUser(null); 
             // setLoading(false) will be handled by the subsequent onAuthStateChanged(null)
@@ -60,13 +74,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await signOut(auth);
           setUser(null);
         } finally {
-          if (auth.currentUser) { 
+           // Only set loading to false if we are sure the auth state check is complete for the current user
+           if (auth.currentUser === firebaseUser) {
              setLoading(false);
-             console.log('[AuthProvider] setLoading(false) in onAuthStateChanged firebaseUser branch (finally).');
-          }
+             console.log('[AuthProvider] setLoading(false) in onAuthStateChanged (user branch - finally).');
+           }
         }
       } else { 
-        console.log('[AuthProvider] No firebaseUser. Setting user to null and loading to false.');
+        console.log('[AuthProvider] No firebaseUser in onAuthStateChanged. Setting user to null and loading to false.');
         setUser(null);
         setLoading(false);
       }
@@ -77,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       unsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, router]); 
+  }, []); // Removed pathname and router dependencies to prevent re-triggering on navigation
 
   useEffect(() => {
     if (!loading) { 
@@ -98,20 +113,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginUser = async (email: string, pass: string) => {
     console.log('[AuthProvider] loginUser attempt for email:', email);
     setLoading(true);
-    // Removed admin-only email check to make login page general
-    // if (email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
-    //   toast({ title: "Login Failed", description: "This login portal is for admin users only.", variant: "destructive" });
-    //   setLoading(false);
-    //   console.log('[AuthProvider] loginUser: Non-admin email attempt.');
-    //   return;
-    // }
-
     try {
+      // Explicitly set persistence to 'local' (browserLocalPersistence)
+      await setPersistence(auth, browserLocalPersistence);
+      console.log('[AuthProvider] Firebase auth persistence set to local.');
+
       await signInWithEmailAndPassword(auth, email, pass);
-      console.log('[AuthProvider] loginUser: signInWithEmailAndPassword successful. onAuthStateChanged will handle profile.');
+      console.log('[AuthProvider] loginUser: signInWithEmailAndPassword successful. onAuthStateChanged will handle profile loading.');
       // onAuthStateChanged will handle setting user and setLoading(false) after profile fetch.
     } catch (error: any) {
-      console.error("Login error details:", error);
+      console.error("[AuthProvider] Login error details:", error);
       let errorMessage = "Invalid email or password.";
       if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
         errorMessage = "Invalid credentials. Please check email and password.";
@@ -119,8 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         errorMessage = "Access temporarily disabled due to too many failed login attempts. Please try again later.";
       } else if (error.code === 'auth/network-request-failed') {
         errorMessage = "Network error. Please check your internet connection and try again.";
-      }
-       else {
+      } else {
         errorMessage = error.message || "An unexpected error occurred during login.";
       }
       toast({ title: "Login Failed", description: errorMessage, variant: "destructive" });
@@ -150,8 +160,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await setDoc(doc(db, 'users', firebaseUser.uid), userProfileData);
       console.log('[AuthProvider] signupUser: Firestore user profile created for UID:', firebaseUser.uid);
       toast({ title: "Account Created", description: "Welcome! Redirecting to dashboard..."});
+      // onAuthStateChanged will handle setting user and setLoading(false)
     } catch (error: any) {
-      console.error("Signup error details:", error);
+      console.error("[AuthProvider] Signup error details:", error);
       let errorMessage = "Could not create account.";
       if (error.code === 'auth/email-already-in-use') {
         errorMessage = "This email address is already in use. Please try a different email or log in.";
@@ -173,15 +184,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('[AuthProvider] logout initiated. Was user logged in:', wasUserLoggedIn);
     try {
       await signOut(auth);
+      // setUser(null) will be handled by onAuthStateChanged
       if (wasUserLoggedIn) {
          toast({ title: "Logged Out", description: "You have been successfully logged out."});
       }
-      router.push('/'); 
+      // Redirect to login page after state has cleared.
+      // The useEffect hook that checks for user and pathname will handle redirecting to '/'.
+      // router.push('/'); // Explicit push can sometimes cause issues if state isn't cleared yet.
     } catch (error) {
-      console.error("Logout error:", error);
+      console.error("[AuthProvider] Logout error:", error);
       toast({ title: "Logout Failed", description: "Could not log out. Please try again.", variant: "destructive" });
     } finally {
        console.log('[AuthProvider] logout: signOut attempt finished.');
+       // setLoading(true); // Briefly set loading to true to ensure redirection logic re-evaluates.
+                           // This can help if onAuthStateChanged doesn't fire fast enough for redirects.
+                           // However, let's see if current logic is sufficient.
     }
   };
   
