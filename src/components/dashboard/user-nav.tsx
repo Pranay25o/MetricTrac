@@ -13,10 +13,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/auth-provider";
-import { LogOut, User as UserIcon, Settings, ChevronDown } from "lucide-react"; // Added ChevronDown
+import { LogOut, User as UserIcon, Settings, ChevronDown } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export function UserNav() {
   const { user, logout } = useAuth();
+  const { toast } = useToast();
 
   if (!user) {
     return null;
@@ -29,6 +31,13 @@ export function UserNav() {
       initials += names[names.length - 1].substring(0, 1).toUpperCase();
     }
     return initials;
+  };
+
+  const handleComingSoon = () => {
+    toast({
+      title: "Feature Coming Soon",
+      description: "This feature is currently under development.",
+    });
   };
 
   return (
@@ -58,11 +67,11 @@ export function UserNav() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem>
+          <DropdownMenuItem onClick={handleComingSoon}>
             <UserIcon className="mr-2 h-4 w-4" />
             <span>Profile</span>
           </DropdownMenuItem>
-          <DropdownMenuItem>
+          <DropdownMenuItem onClick={handleComingSoon}>
             <Settings className="mr-2 h-4 w-4" />
             <span>Settings</span>
           </DropdownMenuItem>
@@ -76,4 +85,3 @@ export function UserNav() {
     </DropdownMenu>
   );
 }
-

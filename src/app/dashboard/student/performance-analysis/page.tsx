@@ -5,18 +5,19 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/auth-provider";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import { analyzeStudentPerformance, type AnalyzeStudentPerformanceInput, type AnalyzeStudentPerformanceOutput } from "@/ai/flows/analyze-student-performance";
-import { getMarksByStudent } from "@/lib/firestore/marks"; // Fetch marks from Firestore
+import { getMarksByStudent } from "@/lib/firestore/marks"; 
 import type { Mark, StudentMarksDataForAI } from "@/lib/types";
-import { Loader2, Brain, Sparkles } from "lucide-react";
+import { Loader2, Brain, Sparkles, UserSquare } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 
 export default function PerformanceAnalysisPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user: authUser, loading: authLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   
   const [analysisResult, setAnalysisResult] = useState<AnalyzeStudentPerformanceOutput | null>(null);
@@ -25,38 +26,91 @@ export default function PerformanceAnalysisPage() {
   const [studentMarks, setStudentMarks] = useState<Mark[]>([]);
   const [isLoadingMarks, setIsLoadingMarks] = useState(true);
 
+  const [viewedStudentId, setViewedStudentId] = useState<string | null>(null);
+  const [viewedStudentName, setViewedStudentName] = useState<string | null>(null);
+  const [isViewingOtherStudent, setIsViewingOtherStudent] = useState(false);
 
   useEffect(() => {
-    if (!authLoading && (!user || user.role !== "student")) {
-      router.push("/dashboard");
+    const studentIdFromQuery = searchParams.get('studentId');
+    const studentNameFromQuery = searchParams.get('studentName');
+    if (studentIdFromQuery) {
+      setViewedStudentId(studentIdFromQuery);
+      setViewedStudentName(studentNameFromQuery || "Selected Student");
+      setIsViewingOtherStudent(true);
+      console.log("PerformanceAnalysisPage: Viewing specific student - ID:", studentIdFromQuery, "Name:", studentNameFromQuery);
+    } else {
+      setIsViewingOtherStudent(false);
     }
-  }, [user, authLoading, router]);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!authUser) {
+        router.push("/dashboard");
+        return;
+      }
+      if (isViewingOtherStudent) { // Admin/teacher viewing a specific student
+        if (authUser.role !== 'admin' && authUser.role !== 'teacher') {
+          toast({ title: "Unauthorized", description: "You do not have permission to view this student's analysis.", variant: "destructive" });
+          router.push("/dashboard");
+        }
+      } else { // Student viewing their own
+        if (authUser.role !== 'student') {
+          // This case should ideally not happen if navigation is correct
+          toast({ title: "Access Error", description: "This page is for students or authorized staff.", variant: "destructive" });
+          router.push("/dashboard");
+        }
+      }
+    }
+  }, [authUser, authLoading, router, isViewingOtherStudent, toast]);
+
 
   const fetchStudentMarksForAI = useCallback(async () => {
-    if (!user) return;
+    const studentIdToFetch = isViewingOtherStudent ? viewedStudentId : authUser?.uid;
+
+    if (!studentIdToFetch) {
+      console.log("PerformanceAnalysisPage: fetchStudentMarksForAI - No studentIdToFetch available.");
+      setIsLoadingMarks(false);
+      if (isViewingOtherStudent) setError("Student ID not provided for analysis.");
+      return;
+    }
+    
+    console.log("PerformanceAnalysisPage: fetchStudentMarksForAI triggered for student:", studentIdToFetch);
     setIsLoadingMarks(true);
+    setError(null); 
     try {
-      const marks = await getMarksByStudent(user.uid); // Fetch all marks for the student
+      const marks = await getMarksByStudent(studentIdToFetch); 
       setStudentMarks(marks);
-    } catch (e) {
+      console.log("PerformanceAnalysisPage: Fetched marks for AI:", marks.length);
+    } catch (e: any) {
       console.error("Error fetching marks for AI analysis:", e);
-      setError("Failed to fetch your marks data. Analysis may be incomplete or unavailable.");
-      toast({ title: "Data Error", description: "Could not fetch your marks for analysis.", variant: "destructive"});
+      setError(`Failed to fetch marks data. Analysis may be incomplete or unavailable. Error: ${e.message}`);
+      toast({ title: "Data Error", description: "Could not fetch marks for analysis.", variant: "destructive"});
     } finally {
       setIsLoadingMarks(false);
     }
-  }, [user, toast]);
+  }, [authUser, toast, viewedStudentId, isViewingOtherStudent]);
 
   useEffect(() => {
-    if (user && user.role === "student") {
-      fetchStudentMarksForAI();
+    if (authLoading) return; 
+
+    if (isViewingOtherStudent && viewedStudentId) {
+        fetchStudentMarksForAI();
+    } else if (!isViewingOtherStudent && authUser && authUser.role === "student") {
+        fetchStudentMarksForAI();
     }
-  }, [user, fetchStudentMarksForAI]);
+  }, [authLoading, authUser, isViewingOtherStudent, viewedStudentId, fetchStudentMarksForAI]);
 
   const handleGenerateAnalysis = async () => {
-    if (!user) return;
+    const studentIdForAI = isViewingOtherStudent ? viewedStudentId : authUser?.uid;
+    const studentNameForAI = isViewingOtherStudent ? viewedStudentName : authUser?.name;
+
+    if (!studentIdForAI || !studentNameForAI) {
+      setError("Student information is missing for analysis generation.");
+      return;
+    }
     if (isLoadingMarks) {
-        toast({title: "Please wait", description: "Still loading your marks data."});
+        toast({title: "Please wait", description: "Still loading marks data."});
         return;
     }
 
@@ -66,13 +120,12 @@ export default function PerformanceAnalysisPage() {
 
     try {
       if (studentMarks.length === 0) {
-        setError("No marks data found to analyze. Please ensure your marks are updated and available.");
+        setError("No marks data found to analyze. Please ensure marks are updated and available.");
         setIsLoadingAnalysis(false);
         return;
       }
       
       const studentMarksDataForAI: StudentMarksDataForAI[] = studentMarks.map(mark => ({
-          // Ensure semesterName and subjectName are present on the mark object
           semester: mark.semesterName || 'Unknown Semester', 
           subject: mark.subjectName || 'Unknown Subject', 
           ca1: mark.ca1 ?? 0,
@@ -82,35 +135,42 @@ export default function PerformanceAnalysisPage() {
         }));
 
       const input: AnalyzeStudentPerformanceInput = {
-        studentName: user.name,
-        studentId: user.uid,
+        studentName: studentNameForAI,
+        studentId: studentIdForAI,
         marksData: studentMarksDataForAI,
       };
       
+      console.log("PerformanceAnalysisPage: Generating analysis with input:", input);
       const result = await analyzeStudentPerformance(input);
       setAnalysisResult(result);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Error generating performance analysis:", e);
-      setError("Failed to generate performance analysis. Please try again later.");
+      setError(`Failed to generate performance analysis. Please try again later. Error: ${e.message}`);
       toast({ title: "Analysis Error", description: "An error occurred while generating insights.", variant: "destructive"});
     } finally {
       setIsLoadingAnalysis(false);
     }
   };
 
-  if (authLoading || !user || user.role !== "student") {
+  if (authLoading || (!authUser && !isViewingOtherStudent) || (isViewingOtherStudent && !viewedStudentId)) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /><p className="ml-2">Loading or unauthorized...</p></div>;
   }
+  
+  const pageTitle = isViewingOtherStudent ? `AI Performance Analysis for ${viewedStudentName || 'Student'}` : "My AI Performance Analysis";
+  const pageDescription = isViewingOtherStudent 
+    ? `Personalized insights and recommendations based on the academic performance of ${viewedStudentName || 'this student'}.`
+    : "Get personalized insights and recommendations based on your academic performance.";
+
 
   return (
     <div className="space-y-6">
       <Card className="shadow-lg">
         <CardHeader>
           <div className="flex items-center gap-3">
-            <Brain className="h-10 w-10 text-primary" />
+            {isViewingOtherStudent ? <UserSquare className="h-10 w-10 text-primary" /> : <Brain className="h-10 w-10 text-primary" />}
             <div>
-              <CardTitle className="text-3xl font-bold text-primary">AI Performance Analysis</CardTitle>
-              <CardDescription>Get personalized insights and recommendations based on your academic performance.</CardDescription>
+              <CardTitle className="text-3xl font-bold text-primary">{pageTitle}</CardTitle>
+              <CardDescription>{pageDescription}</CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -122,7 +182,7 @@ export default function PerformanceAnalysisPage() {
               ) : (
                 <Sparkles className="mr-2 h-5 w-5" />
               )}
-              {isLoadingMarks ? "Loading Marks..." : isLoadingAnalysis ? "Generating..." : "Generate My Performance Insights"}
+              {isLoadingMarks ? "Loading Marks..." : isLoadingAnalysis ? "Generating..." : "Generate Performance Insights"}
             </Button>
           </div>
 
@@ -136,7 +196,7 @@ export default function PerformanceAnalysisPage() {
           {isLoadingAnalysis && (
             <div className="text-center py-10">
               <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary mb-4" />
-              <p className="text-lg text-muted-foreground">Analyzing your performance data... This may take a moment.</p>
+              <p className="text-lg text-muted-foreground">Analyzing performance data... This may take a moment.</p>
             </div>
           )}
 
@@ -183,8 +243,8 @@ export default function PerformanceAnalysisPage() {
           {!analysisResult && !isLoadingAnalysis && !error && !isLoadingMarks && (
              <div className="text-center py-10 border-2 border-dashed border-border rounded-lg">
                 <Sparkles className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-lg text-muted-foreground">Click the button above to generate your personalized performance insights.</p>
-                <p className="text-sm text-muted-foreground mt-2">The AI will analyze your marks across subjects and semesters to provide feedback.</p>
+                <p className="text-lg text-muted-foreground">Click the button above to generate personalized performance insights.</p>
+                <p className="text-sm text-muted-foreground mt-2">The AI will analyze marks across subjects and semesters to provide feedback.</p>
             </div>
           )}
         </CardContent>

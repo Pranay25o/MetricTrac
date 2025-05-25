@@ -67,14 +67,14 @@ export default function ManageStudentsPage() {
       await deleteUserFromFirestore(studentToDelete.uid);
       toast({ title: "Student Deleted", description: `${studentToDelete.name} has been removed from the database. Remember to delete from Firebase Authentication manually if needed.` });
       fetchStudents(); 
-      setIsDeleteDialogOpen(false);
-      setStudentToDelete(null);
       console.log("ManageStudentsPage: Student deleted successfully from Firestore:", studentToDelete.uid);
     } catch (error: any) {
       console.error("Error deleting student from Firestore:", error);
-      toast({ title: "Error Deleting Student", description: error.message || "Could not delete student. Check console/permissions.", variant: "destructive" });
+      toast({ title: "Error Deleting Student", description: `Could not delete ${studentToDelete.name}. Check console for Firestore errors (e.g., permissions or function issues). Error: ${error.message}`, variant: "destructive" });
     } finally {
       setIsDeleting(false);
+      setIsDeleteDialogOpen(false);
+      setStudentToDelete(null);
     }
   };
   
@@ -93,13 +93,13 @@ export default function ManageStudentsPage() {
       <div className="flex flex-col md:flex-row items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-primary">Manage Students</h1>
-          <p className="text-muted-foreground">View, add, or delete student records.</p>
+          <p className="text-muted-foreground">View student records. New students are added via the Signup page.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => toast({ title: "Coming Soon", description: "Student data export feature is under development."})}>
             <FileDown className="mr-2 h-4 w-4" /> Export
           </Button>
-          <Button onClick={() => toast({ title: "Info", description: "New students should be added via the main Signup page."})}>
+          <Button onClick={() => router.push("/signup")}>
             <PlusCircle className="mr-2 h-4 w-4" /> Add Student
           </Button>
         </div>
@@ -144,9 +144,9 @@ export default function ManageStudentsPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex justify-center items-center h-24">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="ml-2">Loading students...</p>
+            <div className="flex justify-center items-center h-60">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <p className="ml-3 text-lg">Loading students...</p>
             </div>
           ) : (
             students.length > 0 ? (
@@ -175,7 +175,7 @@ export default function ManageStudentsPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => router.push(`/dashboard/student/${student.uid}/performance-analysis`)}>
+                            <DropdownMenuItem onClick={() => router.push(`/dashboard/student/performance-analysis?studentId=${student.uid}&studentName=${encodeURIComponent(student.name)}`)}>
                               <Eye className="mr-2 h-4 w-4" /> View Performance
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
@@ -194,7 +194,7 @@ export default function ManageStudentsPage() {
                 <AlertTriangle className="h-5 w-5 text-blue-700" />
                 <AlertTitle className="font-semibold text-blue-800">No Students Found</AlertTitle>
                 <UiAlertDescription className="text-blue-700">
-                  {searchTerm ? "No students match your search criteria." : "No students have been registered in the system yet. Use the Signup page to add students."}
+                  {searchTerm ? "No students match your search criteria." : "No students have been registered in the system yet. Use the 'Add Student' button or the Signup page."}
                   <br />
                   <strong>If data is expected but not showing, please check your browser's developer console (F12) for Firestore index errors or permission issues.</strong>
                 </UiAlertDescription>

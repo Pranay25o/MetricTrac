@@ -11,7 +11,7 @@ import { useAuth } from "@/contexts/auth-provider";
 import { getUsers, deleteUserFromFirestore } from "@/lib/firestore/users"; 
 import { getAssignmentsByTeacher } from "@/lib/firestore/teacherAssignments"; 
 import type { UserProfile } from "@/lib/types";
-import { MoreHorizontal, PlusCircle, Search, FileDown, Trash2, BookOpen, Loader2, AlertTriangle } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Search, FileDown, BookOpen, Loader2, AlertTriangle, Trash2 } from "lucide-react"; // Added Trash2
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -48,12 +48,12 @@ export default function ManageTeachersPage() {
           try {
               const assignments = await getAssignmentsByTeacher(teacher.uid);
               counts[teacher.uid] = assignments.length;
-          } catch (assignmentError) {
+          } catch (assignmentError: any) {
               console.error(`Error fetching assignments for teacher ${teacher.uid} (${teacher.name}):`, assignmentError);
               counts[teacher.uid] = 0; 
               toast({
                   title: "Assignment Count Error",
-                  description: `Could not fetch assignment count for ${teacher.name}. Check console for index or permission errors.`,
+                  description: `Could not fetch assignment count for ${teacher.name}. Check console for index or permission errors. ${assignmentError.message}`,
                   variant: "destructive"
               });
           }
@@ -64,7 +64,7 @@ export default function ManageTeachersPage() {
 
     } catch (error: any) {
       console.error("Error fetching teachers:", error);
-      toast({ title: "Error Fetching Teachers", description: error.message || "Could not fetch teacher records. Check console for Firestore index or permission errors.", variant: "destructive" });
+      toast({ title: "Error Fetching Teachers", description: `Could not fetch teacher records. Check console for Firestore index or permission errors. Error: ${error.message}`, variant: "destructive" });
       setTeachers([]);
       setAssignedCounts({});
     } finally {
@@ -97,16 +97,16 @@ export default function ManageTeachersPage() {
     setIsDeleting(true);
     try {
       await deleteUserFromFirestore(teacherToDelete.uid);
-      toast({ title: "Teacher Deleted", description: `${teacherToDelete.name} has been removed from the database. Remember to delete from Firebase Authentication manually if needed.` });
+      toast({ title: "Teacher Deleted", description: `${teacherToDelete.name} has been removed from Firestore. Remember to delete from Firebase Authentication manually if needed.` });
       fetchTeachersAndCounts(); 
-      setIsDeleteDialogOpen(false);
-      setTeacherToDelete(null);
       console.log("ManageTeachersPage: Teacher deleted successfully from Firestore:", teacherToDelete.uid);
     } catch (error: any) {
       console.error("Error deleting teacher from Firestore:", error);
-      toast({ title: "Error Deleting Teacher", description: error.message || "Could not delete teacher. Check console/permissions.", variant: "destructive" });
+      toast({ title: "Error Deleting Teacher", description: `Could not delete ${teacherToDelete.name}. Check console for Firestore errors or permissions. Error: ${error.message}`, variant: "destructive" });
     } finally {
       setIsDeleting(false);
+      setIsDeleteDialogOpen(false);
+      setTeacherToDelete(null);
     }
   };
   
@@ -124,13 +124,13 @@ export default function ManageTeachersPage() {
       <div className="flex flex-col md:flex-row items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-primary">Manage Teachers</h1>
-          <p className="text-muted-foreground">View, add, or delete teacher records.</p>
+          <p className="text-muted-foreground">View teacher records. New teachers are added via the Signup page.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => toast({ title: "Coming Soon", description: "Teacher data export feature is under development."})}>
             <FileDown className="mr-2 h-4 w-4" /> Export
           </Button>
-          <Button onClick={() => toast({ title: "Info", description: "New teachers should be added via the main Signup page."})}>
+          <Button onClick={() => router.push("/signup")}>
             <PlusCircle className="mr-2 h-4 w-4" /> Add Teacher
           </Button>
         </div>
@@ -175,9 +175,9 @@ export default function ManageTeachersPage() {
         </CardHeader>
         <CardContent>
            {isLoading ? (
-             <div className="flex justify-center items-center h-24">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="ml-2">Loading teachers...</p>
+             <div className="flex justify-center items-center h-60">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <p className="ml-3 text-lg">Loading teachers...</p>
             </div>
           ) : (
             teachers.length > 0 ? (
@@ -211,7 +211,7 @@ export default function ManageTeachersPage() {
                             <DropdownMenuItem onClick={() => router.push(`/dashboard/admin/assign-subjects?teacherId=${teacher.uid}`)}>
                               <BookOpen className="mr-2 h-4 w-4" /> Manage Subjects
                             </DropdownMenuItem>
-                            <DropdownMenuSeparator />
+                             <DropdownMenuSeparator />
                             <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => openDeleteDialog(teacher)}>
                               <Trash2 className="mr-2 h-4 w-4" /> Delete Teacher
                             </DropdownMenuItem>
@@ -227,7 +227,7 @@ export default function ManageTeachersPage() {
                 <AlertTriangle className="h-5 w-5 text-blue-700" />
                 <AlertTitle className="font-semibold text-blue-800">No Teachers Found</AlertTitle>
                 <UiAlertDescription className="text-blue-700">
-                  {searchTerm ? "No teachers match your search criteria." : "No teachers have been registered in the system yet. Use the Signup page to add teachers."}
+                  {searchTerm ? "No teachers match your search criteria." : "No teachers have been registered in the system yet. Use the 'Add Teacher' button or the Signup page."}
                   <br />
                   <strong>If data is expected but not showing, please check your browser's developer console (F12) for Firestore index errors or permission issues.</strong>
                 </UiAlertDescription>

@@ -65,9 +65,9 @@ export default function ManageSemestersPage() {
       const fetchedSemesters = await getSemesters();
       setSemesters(fetchedSemesters);
       console.log("ManageSemestersPage: Fetched semesters:", fetchedSemesters.length);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching semesters:", error);
-      toast({ title: "Error Fetching Semesters", description: "Could not fetch semesters. Check console for Firestore index or permission errors.", variant: "destructive" });
+      toast({ title: "Error Fetching Semesters", description: `Could not fetch semesters. Check console for Firestore index or permission errors. Error: ${error.message}`, variant: "destructive" });
       setSemesters([]);
     } finally {
       setIsLoading(false);
@@ -86,7 +86,7 @@ export default function ManageSemestersPage() {
       toast({ title: "Validation Error", description: "Semester Name and Year are required.", variant: "destructive" });
       return;
     }
-    console.log("ManageSemestersPage: Adding semester:", { name: newSemesterName, year: newSemesterYear });
+    console.log("ManageSemestersPage: Adding semester:", { name: newSemesterName, year: newSemesterYear, startDate: newSemesterStartDate, endDate: newSemesterEndDate });
     setIsSubmitting(true);
     try {
       await addSemester({ 
@@ -102,9 +102,9 @@ export default function ManageSemestersPage() {
       setNewSemesterEndDate("");
       setIsAddDialogOpen(false);
       fetchSemesters(); 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error adding semester:", error);
-      toast({ title: "Error", description: "Could not add semester. Check console for Firestore errors (e.g. permissions).", variant: "destructive" });
+      toast({ title: "Error Adding Semester", description: `Could not add semester. Check console for Firestore errors (e.g., permissions). Error: ${error.message}`, variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -125,7 +125,7 @@ export default function ManageSemestersPage() {
         toast({ title: "Validation Error", description: "Semester Name and Year are required for update.", variant: "destructive" });
         return;
     }
-    console.log("ManageSemestersPage: Updating semester ID:", editingSemester.id);
+    console.log("ManageSemestersPage: Updating semester ID:", editingSemester.id, "to Name:", editSemesterName, "Year:", editSemesterYear, "Start:", editSemesterStartDate, "End:", editSemesterEndDate);
     setIsUpdating(true);
     try {
         await updateSemester(editingSemester.id, {
@@ -135,14 +135,14 @@ export default function ManageSemestersPage() {
             endDate: editSemesterEndDate || undefined,
         });
         toast({ title: "Success", description: "Semester updated successfully." });
-        setIsEditDialogOpen(false);
-        setEditingSemester(null);
         fetchSemesters();
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error updating semester:", error);
-        toast({ title: "Error", description: "Could not update semester. Check console for Firestore errors (e.g. permissions).", variant: "destructive" });
+        toast({ title: "Error Updating Semester", description: `Could not update semester. Check console for Firestore errors (e.g., permissions). Error: ${error.message}`, variant: "destructive" });
     } finally {
         setIsUpdating(false);
+        setIsEditDialogOpen(false);
+        setEditingSemester(null);
     }
   };
 
@@ -153,19 +153,19 @@ export default function ManageSemestersPage() {
 
   const handleDeleteSemester = async () => {
     if(!semesterToDelete) return;
-    console.log("ManageSemestersPage: Attempting to delete semester:", semesterToDelete.id);
+    console.log("ManageSemestersPage: Attempting to delete semester:", semesterToDelete.id, semesterToDelete.name);
     setIsDeleting(true);
     try {
       await deleteSemesterFromDb(semesterToDelete.id);
       toast({ title: "Success", description: "Semester deleted successfully." });
       fetchSemesters(); 
-      setIsDeleteDialogOpen(false);
-      setSemesterToDelete(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting semester:", error);
-      toast({ title: "Error", description: "Could not delete semester. It might be in use or there was a server error. Check console for Firestore errors (e.g. permissions).", variant: "destructive" });
+      toast({ title: "Error Deleting Semester", description: `Could not delete semester. It might be in use or there was a server error. Check console for Firestore errors (e.g., permissions). Error: ${error.message}`, variant: "destructive" });
     } finally {
       setIsDeleting(false);
+      setIsDeleteDialogOpen(false);
+      setSemesterToDelete(null);
     }
   };
   
@@ -176,29 +176,43 @@ export default function ManageSemestersPage() {
 
   const formatDateForDisplay = (dateString?: string) => {
     if (!dateString) return "N/A";
+    // Try parsing as ISO string first (common Firestore Timestamp toDate().toISOString() format)
     const dateObj = parseISO(dateString);
     if (isValid(dateObj)) {
         return format(dateObj, "MMM dd, yyyy");
     }
+    // Fallback for direct yyyy-MM-dd input from date picker
     const directDateObj = new Date(dateString);
-    if (isValid(directDateObj)) {
-        return format(directDateObj, "MMM dd, yyyy");
+     if (isValid(directDateObj) && dateString.includes("-")) { // Check if it looks like a date string
+        // Need to adjust for timezone if directDateObj is used, as it parses as local.
+        // For yyyy-MM-dd, it's safer to re-parse ensuring UTC interpretation if that's the source.
+        const [year, month, day] = dateString.split('-').map(Number);
+        if (year && month && day) {
+            return format(new Date(Date.UTC(year, month - 1, day)), "MMM dd, yyyy");
+        }
     }
-    console.warn("formatDateForDisplay encountered an invalid date string:", dateString);
+    console.warn("formatDateForDisplay encountered an invalid or ambiguous date string:", dateString);
     return "Invalid Date";
   };
 
   const formatDateForInput = (dateString?: string) => {
     if (!dateString) return "";
-    const isoDate = parseISO(dateString);
+    const isoDate = parseISO(dateString); // Handles full ISO strings from Firestore
     if (isValid(isoDate)) {
       return format(isoDate, "yyyy-MM-dd");
     }
-    const directDate = new Date(dateString);
-     if (isValid(directDate)) {
-      return format(directDate, "yyyy-MM-dd");
+    // If it's already in yyyy-MM-dd, just return it (less ideal for consistency)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+        const directDate = new Date(dateString); // This will parse as local midnight
+        if (isValid(directDate)){
+             // To avoid timezone shift issues with native Date, re-format from parts
+            const [year, month, day] = dateString.split('-').map(Number);
+            if(year && month && day) {
+                return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            }
+        }
     }
-    console.warn("formatDateForInput encountered an invalid date string:", dateString);
+    console.warn("formatDateForInput encountered an invalid or ambiguous date string:", dateString);
     return ""; 
   };
 
@@ -340,9 +354,9 @@ export default function ManageSemestersPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-             <div className="flex justify-center items-center h-24">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="ml-2">Loading semesters...</p>
+             <div className="flex justify-center items-center h-60">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <p className="ml-3 text-lg">Loading semesters...</p>
             </div>
           ) : (
             semesters.length > 0 ? (
@@ -394,7 +408,7 @@ export default function ManageSemestersPage() {
                 <AlertTriangle className="h-5 w-5 text-blue-700" />
                 <AlertTitle className="font-semibold text-blue-800">No Semesters Found</AlertTitle>
                 <UiAlertDescription className="text-blue-700">
-                  {searchTerm ? "No semesters match your search." : "No semesters found. Try adding a new semester."}
+                  {searchTerm ? "No semesters match your search criteria." : "No semesters have been added yet. Click 'Add Semester' to create one."}
                   <br />
                   <strong>If data is expected but not showing, please check your browser's developer console (F12) for Firestore index errors or permission issues.</strong>
                 </UiAlertDescription>

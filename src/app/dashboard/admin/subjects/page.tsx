@@ -60,9 +60,9 @@ export default function ManageSubjectsPage() {
       const fetchedSubjects = await getSubjects();
       setSubjects(fetchedSubjects);
       console.log("ManageSubjectsPage: Fetched subjects:", fetchedSubjects.length);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching subjects:", error);
-      toast({ title: "Error Fetching Subjects", description: "Could not fetch subjects. Check console for Firestore index or permission errors.", variant: "destructive" });
+      toast({ title: "Error Fetching Subjects", description: `Could not fetch subjects. Check console for Firestore index or permission errors. Error: ${error.message}`, variant: "destructive" });
       setSubjects([]);
     } finally {
       setIsLoading(false);
@@ -89,9 +89,9 @@ export default function ManageSubjectsPage() {
       setNewSubjectCode("");
       setIsAddDialogOpen(false);
       fetchSubjects(); 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error adding subject:", error);
-      toast({ title: "Error", description: "Could not add subject. Check console for Firestore errors (e.g. permissions).", variant: "destructive" });
+      toast({ title: "Error Adding Subject", description: `Could not add subject. Check console for Firestore errors (e.g., permissions). Error: ${error.message}`, variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -110,19 +110,19 @@ export default function ManageSubjectsPage() {
       toast({ title: "Validation Error", description: "Subject Name and Code are required for update.", variant: "destructive" });
       return;
     }
-    console.log("ManageSubjectsPage: Updating subject ID:", editingSubject.id);
+    console.log("ManageSubjectsPage: Updating subject ID:", editingSubject.id, "to Name:", editSubjectName, "Code:", editSubjectCode);
     setIsUpdating(true);
     try {
       await updateSubject(editingSubject.id, { name: editSubjectName, code: editSubjectCode });
       toast({ title: "Success", description: "Subject updated successfully." });
-      setIsEditDialogOpen(false);
-      setEditingSubject(null);
       fetchSubjects();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating subject:", error);
-      toast({ title: "Error", description: "Could not update subject. Check console for Firestore errors (e.g. permissions).", variant: "destructive" });
+      toast({ title: "Error Updating Subject", description: `Could not update subject. Check console for Firestore errors (e.g., permissions). Error: ${error.message}`, variant: "destructive" });
     } finally {
       setIsUpdating(false);
+      setIsEditDialogOpen(false);
+      setEditingSubject(null);
     }
   };
 
@@ -133,19 +133,19 @@ export default function ManageSubjectsPage() {
 
   const handleDeleteSubject = async () => {
     if (!subjectToDelete) return;
-    console.log("ManageSubjectsPage: Attempting to delete subject:", subjectToDelete.id);
+    console.log("ManageSubjectsPage: Attempting to delete subject:", subjectToDelete.id, subjectToDelete.name);
     setIsDeleting(true);
     try {
       await deleteSubjectFromDb(subjectToDelete.id);
       toast({ title: "Success", description: "Subject deleted successfully." });
       fetchSubjects(); 
-      setIsDeleteDialogOpen(false);
-      setSubjectToDelete(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting subject:", error);
-      toast({ title: "Error", description: "Could not delete subject. It might be assigned or have marks recorded. Check console for Firestore errors (e.g. permissions).", variant: "destructive" });
+      toast({ title: "Error Deleting Subject", description: `Could not delete subject. It might be assigned or have marks recorded. Check console for Firestore errors (e.g., permissions). Error: ${error.message}`, variant: "destructive" });
     } finally {
       setIsDeleting(false);
+      setIsDeleteDialogOpen(false);
+      setSubjectToDelete(null);
     }
   };
   
@@ -259,7 +259,7 @@ export default function ManageSubjectsPage() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Subject List</CardTitle>
-          <CardDescription>All available subjects in the system.</CardDescription>
+          <CardDescription>All available subjects in the system. Both Name and Code are displayed.</CardDescription>
            <div className="relative mt-4">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
@@ -272,9 +272,9 @@ export default function ManageSubjectsPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-             <div className="flex justify-center items-center h-24">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="ml-2">Loading subjects...</p>
+             <div className="flex justify-center items-center h-60">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <p className="ml-3 text-lg">Loading subjects...</p>
             </div>
           ) : (
             subjects.length > 0 ? (
@@ -319,7 +319,7 @@ export default function ManageSubjectsPage() {
                 <AlertTriangle className="h-5 w-5 text-blue-700" />
                 <AlertTitle className="font-semibold text-blue-800">No Subjects Found</AlertTitle>
                 <UiAlertDescription className="text-blue-700">
-                  {searchTerm ? "No subjects match your search." : "No subjects found. Try adding a new subject."}
+                  {searchTerm ? "No subjects match your search criteria." : "No subjects have been added yet. Click 'Add Subject' to create one."}
                   <br />
                   <strong>If data is expected but not showing, please check your browser's developer console (F12) for Firestore index errors or permission issues.</strong>
                 </UiAlertDescription>
