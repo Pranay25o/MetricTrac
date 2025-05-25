@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { useAuth } from "@/contexts/auth-provider";
 import { getUsers } from "@/lib/firestore/users"; // Import getUsers
 import type { UserProfile } from "@/lib/types";
-import { BarChart, BookUser, GraduationCap, Users, NotebookPen, ClipboardEdit, Presentation, UsersRound, Loader2 } from "lucide-react";
+import { BarChart, BookUser, GraduationCap, Users, NotebookPen, ClipboardEdit, Presentation, UsersRound, Loader2, Bell } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react"; // Import useEffect, useState, useCallback
 
@@ -90,11 +90,18 @@ export default function DashboardPage() {
 
   const { title, description, quickLinks } = getRoleSpecificWelcome();
 
-  const countCards = [
-    { title: "Total Users", count: totalUsers, icon: UsersRound, color: "text-blue-600" },
-    { title: "Total Students", count: totalStudents, icon: GraduationCap, color: "text-green-600" },
-    { title: "Total Teachers", count: totalTeachers, icon: BookUser, color: "text-purple-600" },
-  ];
+  let displayedCountCards = [];
+  if (user.role === 'admin') {
+    displayedCountCards = [
+      { title: "Total Users", count: totalUsers, icon: UsersRound, color: "text-blue-600" },
+      { title: "Total Students", count: totalStudents, icon: GraduationCap, color: "text-green-600" },
+      { title: "Total Teachers", count: totalTeachers, icon: BookUser, color: "text-purple-600" },
+    ];
+  } else if (user.role === 'teacher') {
+    displayedCountCards = [
+      { title: "Total Students", count: totalStudents, icon: GraduationCap, color: "text-green-600" },
+    ];
+  } // Students don't see these count cards by default based on this logic
 
   return (
     <div className="space-y-8">
@@ -110,29 +117,31 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 md:grid-cols-3">
-        {countCards.map(item => {
-          const Icon = item.icon;
-          return (
-            <Card key={item.title} className="shadow-lg hover:shadow-xl transition-shadow duration-300 ease-in-out">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{item.title}</CardTitle>
-                <Icon className={`h-5 w-5 ${item.color}`} />
-              </CardHeader>
-              <CardContent>
-                {isLoadingCounts ? (
-                   <Loader2 className="h-7 w-7 animate-spin" />
-                ) : (
-                  <div className={`text-3xl font-bold ${item.color}`}>{item.count ?? "N/A"}</div>
-                )}
-                <p className="text-xs text-muted-foreground pt-1">
-                  Current count of {item.title.toLowerCase()} in the system.
-                </p>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      {displayedCountCards.length > 0 && (
+        <div className={`grid gap-6 ${user.role === 'teacher' ? 'md:grid-cols-1 lg:grid-cols-1 xl:grid-cols-2' : 'md:grid-cols-3'}`}>
+          {displayedCountCards.map(item => {
+            const Icon = item.icon;
+            return (
+              <Card key={item.title} className="shadow-lg hover:shadow-xl transition-shadow duration-300 ease-in-out">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">{item.title}</CardTitle>
+                  <Icon className={`h-5 w-5 ${item.color}`} />
+                </CardHeader>
+                <CardContent>
+                  {isLoadingCounts ? (
+                    <Loader2 className="h-7 w-7 animate-spin" />
+                  ) : (
+                    <div className={`text-3xl font-bold ${item.color}`}>{item.count ?? "N/A"}</div>
+                  )}
+                  <p className="text-xs text-muted-foreground pt-1">
+                    Current count of {item.title.toLowerCase()} in the system.
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
 
       {quickLinks && quickLinks.length > 0 && (
