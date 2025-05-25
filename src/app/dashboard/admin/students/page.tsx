@@ -10,12 +10,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useAuth } from "@/contexts/auth-provider";
 import { getUsers, deleteUserFromFirestore } from "@/lib/firestore/users"; 
 import type { UserProfile } from "@/lib/types";
-import { MoreHorizontal, PlusCircle, Search, FileDown, Eye, Trash2, Loader2, AlertTriangle } from "lucide-react"; // Changed Edit2 to Trash2
+import { MoreHorizontal, PlusCircle, Search, FileDown, Eye, Trash2, Loader2, AlertTriangle, Edit2 } from "lucide-react"; 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogDescription as UiDialogDescription } from "@/components/ui/dialog"; // Re-added Dialog imports
-import { Alert, AlertTitle, AlertDescription as UiAlertDescription } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogDescription as UiDialogDescription } from "@/components/ui/dialog"; 
+import { Alert, AlertTitle as UiAlertTitle, AlertDescription as UiAlertDescription } from "@/components/ui/alert";
 
 
 export default function ManageStudentsPage() {
@@ -27,7 +27,6 @@ export default function ManageStudentsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Reinstated Delete Dialog State
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<UserProfile | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -40,7 +39,7 @@ export default function ManageStudentsPage() {
       setStudents(fetchedStudents);
       console.log("ManageStudentsPage: Fetched students:", fetchedStudents.length);
     } catch (error: any) {
-      console.error("Error fetching students:", error);
+      console.error("ManageStudentsPage: Error fetching students:", error);
       toast({ title: "Error Fetching Students", description: `Could not fetch student records. Check console for Firestore index or permission errors. Error: ${error.message}`, variant: "destructive" });
       setStudents([]);
     } finally {
@@ -54,6 +53,10 @@ export default function ManageStudentsPage() {
       fetchStudents();
     }
   }, [user, authLoading, fetchStudents]);
+
+  const handleEditStudent = () => {
+    toast({ title: "Feature Coming Soon", description: "Editing student details will be available in a future update." });
+  };
 
   const openDeleteDialog = (student: UserProfile) => {
     setStudentToDelete(student);
@@ -73,7 +76,7 @@ export default function ManageStudentsPage() {
       console.error("ManageStudentsPage: Error deleting student from Firestore:", error);
       toast({ 
         title: "Error Deleting Student Record", 
-        description: `Could not delete ${studentToDelete.name}'s record. Check console for Firestore errors (e.g., permissions). Error: ${error.message}`, 
+        description: `Could not delete ${studentToDelete.name}'s record. Check console for Firestore errors (e.g., permissions or function errors). Error: ${error.message}`, 
         variant: "destructive" 
       });
     } finally {
@@ -110,7 +113,6 @@ export default function ManageStudentsPage() {
         </div>
       </div>
 
-      {/* Delete Student Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={(isOpen) => {
         setIsDeleteDialogOpen(isOpen);
         if(!isOpen) setStudentToDelete(null);
@@ -155,8 +157,7 @@ export default function ManageStudentsPage() {
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
                 <p className="ml-3 text-lg">Loading students...</p>
             </div>
-          ) : (
-            students.length > 0 ? (
+          ) : students.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -185,6 +186,7 @@ export default function ManageStudentsPage() {
                             <DropdownMenuItem onClick={() => router.push(`/dashboard/student/performance-analysis?studentId=${student.uid}&studentName=${encodeURIComponent(student.name)}`)}>
                               <Eye className="mr-2 h-4 w-4" /> View Performance
                             </DropdownMenuItem>
+                            {/* "Edit Student" button removed for now */}
                             <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => openDeleteDialog(student)}>
                               <Trash2 className="mr-2 h-4 w-4" /> Delete Student
                             </DropdownMenuItem>
@@ -198,7 +200,7 @@ export default function ManageStudentsPage() {
             ) : (
               <Alert variant="default" className="mt-4 border-blue-500 bg-blue-50">
                 <AlertTriangle className="h-5 w-5 text-blue-700" />
-                <AlertTitle className="font-semibold text-blue-800">No Students Found</AlertTitle>
+                <UiAlertTitle className="font-semibold text-blue-800">No Students Found</UiAlertTitle>
                 <UiAlertDescription className="text-blue-700">
                   {searchTerm ? "No students match your search criteria." : "No students have been registered in the system yet. Use the 'Add Student' button or the Signup page."}
                   <br />
@@ -206,7 +208,7 @@ export default function ManageStudentsPage() {
                 </UiAlertDescription>
               </Alert>
             )
-          )}
+          }
         </CardContent>
       </Card>
     </div>

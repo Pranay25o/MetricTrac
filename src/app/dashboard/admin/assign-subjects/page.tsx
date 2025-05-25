@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose, DialogDescription as UiDialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/auth-provider";
 import { getSemesters } from "@/lib/firestore/semesters";
@@ -18,7 +18,7 @@ import { MoreHorizontal, PlusCircle, Edit2, Trash2, Filter, Loader2, AlertTriang
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { Alert, AlertTitle, AlertDescription as UiAlertDescription } from "@/components/ui/alert";
+import { Alert, AlertTitle as UiAlertTitle, AlertDescription as UiAlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 
@@ -112,7 +112,7 @@ export default function AssignSubjectsPage() {
       console.log("AssignSubjectsPage: Fetched assignments count:", fetchedAssignments.length, "Data:", fetchedAssignments);
     } catch (error: any) {
       console.error("AssignSubjectsPage: Error fetching assignments:", error);
-      toast({ title: "Error Fetching Assignments", description: error.message || "Could not load assignments. Check console for details (you might need to create Firestore indexes or check permissions).", variant: "destructive" });
+      toast({ title: "Error Fetching Assignments", description: `${error.message || "Could not load assignments."} Check console for details (you might need to create Firestore indexes or check permissions).`, variant: "destructive" });
       setAssignments([]); 
     } finally {
       setIsLoadingAssignments(false);
@@ -270,7 +270,7 @@ export default function AssignSubjectsPage() {
       return "Cannot create or view assignments. Please ensure teachers, subjects, AND semesters have been added to the system.";
     }
     if (filterTeacher || filterSubject || filterSemester) {
-      return "No assignments match your current filters.";
+      return "No assignments match your current filters. Please clear filters or check your browser's developer console (F12) for Firestore index errors if data is expected.";
     }
     return "No assignments have been created yet. Click 'New Assignment' to add one.";
   };
@@ -357,9 +357,9 @@ export default function AssignSubjectsPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Edit Assignment</DialogTitle>
-            <DialogDescription>
+            <UiDialogDescription>
               Modify the teacher, subject, or semester for this assignment.
-            </DialogDescription>
+            </UiDialogDescription>
           </DialogHeader>
           {editingAssignment && (
             <div className="grid gap-4 py-4">
@@ -410,13 +410,13 @@ export default function AssignSubjectsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Assignment</DialogTitle>
-            <DialogDescription>
+            <UiDialogDescription>
               Are you sure you want to delete this assignment: <br />
               Teacher: {assignmentToDelete?.teacherName} <br />
               Subject: {assignmentToDelete?.subjectName} <br />
               Semester: {assignmentToDelete?.semesterName} <br />
               This action cannot be undone.
-            </DialogDescription>
+            </UiDialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
@@ -471,8 +471,7 @@ export default function AssignSubjectsPage() {
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
                 <p className="ml-3 text-lg">{isLoadingPrerequisites ? "Loading prerequisites..." : "Loading assignments..."}</p>
             </div>
-          ) : (
-            assignments.length > 0 ? (
+          ) : assignments.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -514,15 +513,15 @@ export default function AssignSubjectsPage() {
             ) : (
               <Alert variant="default" className="mt-4 border-blue-500 bg-blue-50">
                 <AlertTriangle className="h-5 w-5 text-blue-700" />
-                <AlertTitle className="font-semibold text-blue-800">No Assignments Found</AlertTitle>
+                <UiAlertTitle className="font-semibold text-blue-800">No Assignments Found</UiAlertTitle>
                 <UiAlertDescription className="text-blue-700">
                   {renderNoAssignmentsMessage()}
-                  <br />
-                  <strong>If data is expected but not showing, or filters don't work, please check your browser's developer console (F12) for Firestore index errors or permission issues.</strong>
+                   {(filterTeacher || filterSubject || filterSemester) && <><br/><strong>If data is expected with current filters, check your browser's developer console (F12) for Firestore index errors. You may need to create a composite index in Firebase for this specific filter combination.</strong></>}
+                   {(!filterTeacher && !filterSubject && !filterSemester) && <><br/><strong>If data is expected but not showing, please check your browser's developer console (F12) for Firestore index errors or permission issues.</strong></>}
                 </UiAlertDescription>
               </Alert>
             )
-          )}
+          }
         </CardContent>
       </Card>
     </div>
