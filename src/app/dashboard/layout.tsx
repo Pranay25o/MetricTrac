@@ -16,10 +16,11 @@ import { UserNav } from "@/components/dashboard/user-nav";
 import { NavLinks } from "@/components/dashboard/nav-links";
 import { useAuth } from "@/contexts/auth-provider";
 import { MeritTracLogo } from "@/components/icons/logo";
-import { Bell, Search, Settings, Loader2 } from "lucide-react"; // Added Loader2
+import { Bell, Search, Settings, Loader2 } from "lucide-react"; 
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { useToast } from "@/hooks/use-toast"; // Import useToast
 
 export default function DashboardLayout({
   children,
@@ -28,6 +29,7 @@ export default function DashboardLayout({
 }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const { toast } = useToast(); // Initialize useToast
 
   useEffect(() => {
     if (!loading && !user) {
@@ -43,6 +45,13 @@ export default function DashboardLayout({
       </div>
     );
   }
+
+  const handleSettingsClick = () => {
+    toast({
+      title: "Feature Coming Soon",
+      description: "The settings page is currently under development.",
+    });
+  };
   
   return (
     <SidebarProvider defaultOpen>
@@ -61,7 +70,11 @@ export default function DashboardLayout({
           <NavLinks userRole={user.role} />
         </SidebarContent>
         <SidebarFooter className="p-4">
-          <Button variant="ghost" className="w-full justify-start gap-2 group-data-[collapsible=icon]:justify-center">
+          <Button 
+            variant="ghost" 
+            className="w-full justify-start gap-2 group-data-[collapsible=icon]:justify-center"
+            onClick={handleSettingsClick} // Add onClick handler
+          >
             <Settings className="h-5 w-5" />
             <span className="group-data-[collapsible=icon]:hidden">Settings</span>
           </Button>
@@ -88,10 +101,11 @@ export default function DashboardLayout({
             <UserNav />
           </div>
         </header>
-        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-auto"> {/* Changed overflow-y-auto to overflow-auto */}
+        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-auto"> 
           {children}
         </main>
       </SidebarInset>
     </SidebarProvider>
   );
 }
+
