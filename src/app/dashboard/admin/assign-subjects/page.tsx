@@ -36,10 +36,8 @@ export default function AssignSubjectsPage() {
   const [isLoadingPrerequisites, setIsLoadingPrerequisites] = useState(true); 
   const [isLoadingAssignments, setIsLoadingAssignments] = useState(true); 
 
-  // Filters
+  // Filter
   const [filterTeacher, setFilterTeacher] = useState<string>("");
-  const [filterSubject, setFilterSubject] = useState<string>("");
-  const [filterSemester, setFilterSemester] = useState<string>("");
 
   // Add Dialog State
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -100,13 +98,11 @@ export default function AssignSubjectsPage() {
   }, [toast]);
   
   const fetchAssignments = useCallback(async () => {
-    console.log("AssignSubjectsPage: fetchAssignments triggered with filters - Teacher:", filterTeacher, "Subject:", filterSubject, "Semester:", filterSemester);
+    console.log("AssignSubjectsPage: fetchAssignments triggered with filter - Teacher:", filterTeacher);
     setIsLoadingAssignments(true);
     try {
       const fetchedAssignments = await getTeacherAssignments({
         teacherUid: filterTeacher || undefined,
-        subjectId: filterSubject || undefined,
-        semesterId: filterSemester || undefined,
       });
       setAssignments(fetchedAssignments);
       console.log("AssignSubjectsPage: Fetched assignments count:", fetchedAssignments.length, "Data:", fetchedAssignments);
@@ -117,7 +113,7 @@ export default function AssignSubjectsPage() {
     } finally {
       setIsLoadingAssignments(false);
     }
-  }, [toast, filterTeacher, filterSubject, filterSemester]);
+  }, [toast, filterTeacher]);
 
   useEffect(() => {
     if (user && user.role === "admin" && !authLoading) {
@@ -127,7 +123,7 @@ export default function AssignSubjectsPage() {
   }, [user, authLoading, fetchPrerequisiteData]);
   
   useEffect(() => {
-     console.log("AssignSubjectsPage: Assignment fetch useEffect triggered. User:", !!user, "Role:", user?.role, "LoadingPrerequisites:", isLoadingPrerequisites, "AuthLoading:", authLoading, "Filters:", { filterTeacher, filterSubject, filterSemester });
+     console.log("AssignSubjectsPage: Assignment fetch useEffect triggered. User:", !!user, "Role:", user?.role, "LoadingPrerequisites:", isLoadingPrerequisites, "AuthLoading:", authLoading, "Filters:", { filterTeacher });
     if (user && user.role === "admin" && !authLoading && !isLoadingPrerequisites) { 
      console.log("AssignSubjectsPage: Conditions met, calling fetchAssignments.");
      fetchAssignments();
@@ -136,7 +132,7 @@ export default function AssignSubjectsPage() {
       if(isLoadingPrerequisites) console.log("AssignSubjectsPage: Still loading prerequisites.");
       if(authLoading) console.log("AssignSubjectsPage: Still authLoading.");
     }
-  }, [user, authLoading, filterTeacher, filterSubject, filterSemester, fetchAssignments, isLoadingPrerequisites]); 
+  }, [user, authLoading, filterTeacher, fetchAssignments, isLoadingPrerequisites]); 
 
   const handleAddAssignment = async () => {
     if (!newAssignmentTeacherUid || !newAssignmentSubjectId || !newAssignmentSemesterId) {
@@ -178,9 +174,9 @@ export default function AssignSubjectsPage() {
       setNewAssignmentSemesterId("");
       setIsAddDialogOpen(false);
       fetchAssignments(); 
-    } catch (error) {
+    } catch (error: any) {
       console.error("AssignSubjectsPage: Error adding assignment:", error);
-      toast({ title: "Error Adding Assignment", description: "Could not add assignment. It might already exist or there was a server error. Check console for Firestore errors (e.g. permissions).", variant: "destructive" });
+      toast({ title: "Error Adding Assignment", description: `Could not add assignment. It might already exist or there was a server error. Check console for Firestore errors (e.g. permissions). Error: ${error.message || 'Unknown error'}`, variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -230,9 +226,9 @@ export default function AssignSubjectsPage() {
       setIsEditDialogOpen(false);
       setEditingAssignment(null); 
       fetchAssignments();
-    } catch (error) {
+    } catch (error: any) {
       console.error("AssignSubjectsPage: Error updating assignment:", error);
-      toast({ title: "Error Updating Assignment", description: "Could not update assignment. Check console for Firestore errors (e.g. permissions).", variant: "destructive" });
+      toast({ title: "Error Updating Assignment", description: `Could not update assignment. Check console for Firestore errors (e.g. permissions). Error: ${error.message || 'Unknown error'}`, variant: "destructive" });
     } finally {
       setIsUpdating(false);
     }
@@ -254,9 +250,9 @@ export default function AssignSubjectsPage() {
       fetchAssignments(); 
       setIsDeleteDialogOpen(false);
       setAssignmentToDelete(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error("AssignSubjectsPage: Error deleting assignment:", error);
-      toast({ title: "Error Deleting Assignment", description: "Could not delete assignment. Check console for Firestore errors (e.g. permissions).", variant: "destructive" });
+      toast({ title: "Error Deleting Assignment", description: `Could not delete assignment. Check console for Firestore errors (e.g. permissions). Error: ${error.message || 'Unknown error'}`, variant: "destructive" });
     } finally {
       setIsDeleting(false);
     }
@@ -269,10 +265,10 @@ export default function AssignSubjectsPage() {
     if (allTeachers.length === 0 || allSubjects.length === 0 || allSemesters.length === 0) {
       return "Cannot create or view assignments. Please ensure teachers, subjects, AND semesters have been added to the system.";
     }
-    if (filterTeacher || filterSubject || filterSemester) {
-      return "No assignments match your current filters. Please clear filters or check your browser's developer console (F12) for Firestore index errors if data is expected.";
+    if (filterTeacher) {
+      return "No assignments match your current filter for the selected teacher. Please clear the filter or check your browser's developer console (F12) for Firestore index errors if data is expected.";
     }
-    return "No assignments have been created yet. Click 'New Assignment' to add one.";
+    return "No assignments have been created yet. Click 'New Assignment' to add one, or select a teacher to view their assignments.";
   };
 
 
@@ -431,8 +427,11 @@ export default function AssignSubjectsPage() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Current Assignments</CardTitle>
-          <CardDescription>List of subjects assigned to teachers for various semesters. If filters don't work or data is missing, <strong>check browser console (F12) for Firestore index errors or permission issues.</strong></CardDescription>
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+          <CardDescription>
+            List of subjects assigned to teachers. Filter by teacher to see their specific assignments.
+            If filters don't work or data is missing, <strong>check browser console (F12) for Firestore index errors or permission issues.</strong>
+          </CardDescription>
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
             <div className="md:col-span-1">
               <Label htmlFor="teacherFilter" className="text-sm font-medium">Filter by Teacher</Label>
               <Select value={filterTeacher} onValueChange={setFilterTeacher} disabled={isLoadingPrerequisites || allTeachers.length === 0}>
@@ -442,26 +441,8 @@ export default function AssignSubjectsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="md:col-span-1">
-             <Label htmlFor="subjectFilter" className="text-sm font-medium">Filter by Subject</Label>
-              <Select value={filterSubject} onValueChange={setFilterSubject} disabled={isLoadingPrerequisites || allSubjects.length === 0}>
-                <SelectTrigger id="subjectFilter"><SelectValue placeholder="All Subjects" /></SelectTrigger>
-                <SelectContent>
-                  {allSubjects.map(subject => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="md:col-span-1">
-            <Label htmlFor="semesterFilter" className="text-sm font-medium">Filter by Semester</Label>
-              <Select value={filterSemester} onValueChange={setFilterSemester} disabled={isLoadingPrerequisites || allSemesters.length === 0}>
-                <SelectTrigger id="semesterFilter"><SelectValue placeholder="All Semesters" /></SelectTrigger>
-                <SelectContent>
-                  {allSemesters.map(semester =><SelectItem key={semester.id} value={semester.id}>{semester.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button variant="outline" className="md:col-span-1" onClick={() => {setFilterTeacher(""); setFilterSubject(""); setFilterSemester("")}} disabled={isLoadingAssignments || isLoadingPrerequisites}>
-                <Filter className="mr-2 h-4 w-4" /> Clear Filters
+            <Button variant="outline" className="md:col-span-1" onClick={() => {setFilterTeacher("")}} disabled={isLoadingAssignments || isLoadingPrerequisites || !filterTeacher}>
+                <Filter className="mr-2 h-4 w-4" /> Clear Teacher Filter
             </Button>
           </div>
         </CardHeader>
@@ -516,8 +497,8 @@ export default function AssignSubjectsPage() {
                 <UiAlertTitle className="font-semibold text-blue-800">No Assignments Found</UiAlertTitle>
                 <UiAlertDescription className="text-blue-700">
                   {renderNoAssignmentsMessage()}
-                   {(filterTeacher || filterSubject || filterSemester) && <><br/><strong>If data is expected with current filters, check your browser's developer console (F12) for Firestore index errors. You may need to create a composite index in Firebase for this specific filter combination.</strong></>}
-                   {(!filterTeacher && !filterSubject && !filterSemester) && <><br/><strong>If data is expected but not showing, please check your browser's developer console (F12) for Firestore index errors or permission issues.</strong></>}
+                   {filterTeacher && <><br/><strong>If data is expected for the selected teacher, check your browser's developer console (F12) for Firestore index errors. You may need to create a composite index in Firebase for this specific filter combination.</strong></>}
+                   {!filterTeacher && <><br/><strong>If data is expected but not showing, please check your browser's developer console (F12) for Firestore index errors or permission issues.</strong></>}
                 </UiAlertDescription>
               </Alert>
             )

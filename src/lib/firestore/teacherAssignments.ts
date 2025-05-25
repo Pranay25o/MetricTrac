@@ -16,31 +16,25 @@ export async function addTeacherAssignment(assignmentData: Omit<TeacherSubjectAs
   return docRef.id;
 }
 
-export async function getTeacherAssignments(filters?: { teacherUid?: string, subjectId?: string, semesterId?: string }): Promise<TeacherSubjectAssignment[]> {
+export async function getTeacherAssignments(filters?: { teacherUid?: string }): Promise<TeacherSubjectAssignment[]> {
   console.log("Firestore: getTeacherAssignments called with filters:", filters);
   let q;
   const conditions = [];
   let queryDescription = "teacherAssignments";
+  let orderByClauses = [];
 
-  if (filters) {
-    if (filters.teacherUid) {
-      conditions.push(where('teacherUid', '==', filters.teacherUid));
-      queryDescription += ` where teacherUid == ${filters.teacherUid}`;
-    }
-    if (filters.subjectId) {
-      conditions.push(where('subjectId', '==', filters.subjectId));
-      queryDescription += ` where subjectId == ${filters.subjectId}`;
-    }
-    if (filters.semesterId) {
-      conditions.push(where('semesterId', '==', filters.semesterId));
-      queryDescription += ` where semesterId == ${filters.semesterId}`;
-    }
+  if (filters && filters.teacherUid) {
+    conditions.push(where('teacherUid', '==', filters.teacherUid));
+    queryDescription += ` where teacherUid == ${filters.teacherUid}`;
+    // When filtering by a specific teacher, order by semester then subject
+    orderByClauses = [orderBy('semesterName', 'asc'), orderBy('subjectName', 'asc')];
+    queryDescription += " orderBy semesterName asc, subjectName asc";
+  } else {
+    // Default view: order by teacher, then semester, then subject
+    orderByClauses = [orderBy('teacherName', 'asc'), orderBy('semesterName', 'asc'), orderBy('subjectName', 'asc')];
+    queryDescription += " orderBy teacherName asc, semesterName asc, subjectName asc";
   }
   
-  // Always order by teacherName, then subjectName for consistency
-  const orderByClauses = [orderBy('teacherName', 'asc'), orderBy('subjectName', 'asc')];
-  queryDescription += " orderBy teacherName asc, subjectName asc";
-
   if (conditions.length > 0) {
     q = query(assignmentsCollection, ...conditions, ...orderByClauses);
   } else {
@@ -57,10 +51,9 @@ export async function getTeacherAssignments(filters?: { teacherUid?: string, sub
 
 export async function getAssignmentsByTeacher(teacherUid: string): Promise<TeacherSubjectAssignment[]> {
   console.log("Firestore: getAssignmentsByTeacher called for teacherUid:", teacherUid);
-  // Requires an index on teacherUid (asc), and likely sub-sorted if needed.
-  // For now, just fetching by teacherUid without additional sorting.
+  // Order by semester then subject for a specific teacher's view
   const q = query(assignmentsCollection, where('teacherUid', '==', teacherUid), orderBy('semesterName', 'asc'), orderBy('subjectName', 'asc'));
-  console.log("Firestore: Executing query: teacherAssignments where teacherUid == ", teacherUid, "orderBy semesterName, subjectName");
+  console.log("Firestore: Executing query: teacherAssignments where teacherUid == ", teacherUid, "orderBy semesterName asc, subjectName asc");
   const querySnapshot = await getDocs(q);
   const assignments = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TeacherSubjectAssignment));
   console.log(`Firestore: getAssignmentsByTeacher successfully fetched ${assignments.length} assignments for teacher ${teacherUid}.`);
