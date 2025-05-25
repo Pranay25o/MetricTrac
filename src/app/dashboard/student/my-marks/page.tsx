@@ -104,18 +104,9 @@ export default function MyMarksPage() {
     const totalMaxMarks = marksForSelectedSemester.length * 100; 
     const percentage = totalMaxMarks > 0 ? (totalMarksObtained / totalMaxMarks) * 100 : 0;
     
-    let gpaEquivalent = "N/A"; 
-    if (percentage >= 90) gpaEquivalent = "4.0 (A+)";
-    else if (percentage >= 80) gpaEquivalent = "3.5 (A)";
-    else if (percentage >= 70) gpaEquivalent = "3.0 (B)";
-    else if (percentage >= 60) gpaEquivalent = "2.5 (C)";
-    else if (percentage >= 50) gpaEquivalent = "2.0 (D)";
-    else gpaEquivalent = "1.0 (F)";
-
     return {
       totalSubjects: marksForSelectedSemester.length,
       averagePercentage: percentage.toFixed(2),
-      gpaEquivalent,
     };
   }, [marksForSelectedSemester]);
   
@@ -173,10 +164,9 @@ export default function MyMarksPage() {
                         <CardTitle className="text-xl text-accent">Semester Performance Summary</CardTitle>
                         <UiAlertDescription>{allSystemSemesters.find(s => s.id === selectedSemesterId)?.name} ({allSystemSemesters.find(s => s.id === selectedSemesterId)?.year})</UiAlertDescription>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div><span className="font-semibold">Total Subjects:</span> {overallSemesterPerformance.totalSubjects}</div>
                         <div><span className="font-semibold">Average Percentage:</span> {overallSemesterPerformance.averagePercentage}%</div>
-                        <div><span className="font-semibold">GPA Equivalent:</span> {overallSemesterPerformance.gpaEquivalent}</div>
                     </CardContent>
                     </Card>
                 )}
@@ -236,3 +226,4 @@ export default function MyMarksPage() {
     </div>
   );
 }
+
