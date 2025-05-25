@@ -11,12 +11,12 @@ import { useAuth } from "@/contexts/auth-provider";
 import { getUsers, deleteUserFromFirestore } from "@/lib/firestore/users"; 
 import { getAssignmentsByTeacher } from "@/lib/firestore/teacherAssignments"; 
 import type { UserProfile } from "@/lib/types";
-import { MoreHorizontal, PlusCircle, Search, FileDown, Edit2, Trash2, Eye, BookOpen, Loader2, AlertTriangle } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Search, FileDown, Trash2, BookOpen, Loader2, AlertTriangle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription as UiDialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog"; // Renamed DialogDescription
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription as UiDialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Alert, AlertTitle, AlertDescription as UiAlertDescription } from "@/components/ui/alert";
 
 
@@ -53,7 +53,7 @@ export default function ManageTeachersPage() {
               counts[teacher.uid] = 0; 
               toast({
                   title: "Assignment Count Error",
-                  description: `Could not fetch assignment count for ${teacher.name}. Check console.`,
+                  description: `Could not fetch assignment count for ${teacher.name}. Check console for index or permission errors.`,
                   variant: "destructive"
               });
           }
@@ -97,13 +97,13 @@ export default function ManageTeachersPage() {
     setIsDeleting(true);
     try {
       await deleteUserFromFirestore(teacherToDelete.uid);
-      toast({ title: "Teacher Deleted", description: `${teacherToDelete.name} has been removed from the database. Remember to delete from Firebase Authentication manually.` });
+      toast({ title: "Teacher Deleted", description: `${teacherToDelete.name} has been removed from the database. Remember to delete from Firebase Authentication manually if needed.` });
       fetchTeachersAndCounts(); 
       setIsDeleteDialogOpen(false);
       setTeacherToDelete(null);
-      console.log("ManageTeachersPage: Teacher deleted successfully:", teacherToDelete.uid);
+      console.log("ManageTeachersPage: Teacher deleted successfully from Firestore:", teacherToDelete.uid);
     } catch (error: any) {
-      console.error("Error deleting teacher:", error);
+      console.error("Error deleting teacher from Firestore:", error);
       toast({ title: "Error Deleting Teacher", description: error.message || "Could not delete teacher. Check console/permissions.", variant: "destructive" });
     } finally {
       setIsDeleting(false);
@@ -124,13 +124,13 @@ export default function ManageTeachersPage() {
       <div className="flex flex-col md:flex-row items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-primary">Manage Teachers</h1>
-          <p className="text-muted-foreground">View, add, edit, or delete teacher records.</p>
+          <p className="text-muted-foreground">View, add, or delete teacher records.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => console.log("Export teachers TODO")}>
+          <Button variant="outline" onClick={() => toast({ title: "Coming Soon", description: "Teacher data export feature is under development."})}>
             <FileDown className="mr-2 h-4 w-4" /> Export
           </Button>
-          <Button onClick={() => console.log("Add teacher TODO")}>
+          <Button onClick={() => toast({ title: "Info", description: "New teachers should be added via the main Signup page."})}>
             <PlusCircle className="mr-2 h-4 w-4" /> Add Teacher
           </Button>
         </div>
@@ -146,7 +146,7 @@ export default function ManageTeachersPage() {
             <DialogTitle>Delete Teacher</DialogTitle>
             <UiDialogDescription>
               Are you sure you want to delete {teacherToDelete?.name}? This will remove their record from Firestore.
-              You must also manually delete their account from Firebase Authentication. This action cannot be undone.
+              You may also need to manually delete their account from Firebase Authentication. This action cannot be undone.
             </UiDialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -208,12 +208,6 @@ export default function ManageTeachersPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => console.log("View teacher details TODO", teacher.uid) }>
-                              <Eye className="mr-2 h-4 w-4" /> View Details
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => console.log("Edit teacher TODO", teacher.uid) }>
-                              <Edit2 className="mr-2 h-4 w-4" /> Edit Teacher
-                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => router.push(`/dashboard/admin/assign-subjects?teacherId=${teacher.uid}`)}>
                               <BookOpen className="mr-2 h-4 w-4" /> Manage Subjects
                             </DropdownMenuItem>

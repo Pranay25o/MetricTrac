@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose, DialogDescription as UiDialogDescription } from "@/components/ui/dialog"; // Renamed DialogDescription
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose, DialogDescription as UiDialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/auth-provider";
 import { addSubject, getSubjects, deleteSubject as deleteSubjectFromDb, updateSubject } from "@/lib/firestore/subjects";
@@ -40,6 +40,11 @@ export default function ManageSubjectsPage() {
   const [editSubjectName, setEditSubjectName] = useState("");
   const [editSubjectCode, setEditSubjectCode] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // Delete Dialog State
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [subjectToDelete, setSubjectToDelete] = useState<Subject | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
 
   useEffect(() => {
@@ -86,7 +91,7 @@ export default function ManageSubjectsPage() {
       fetchSubjects(); 
     } catch (error) {
       console.error("Error adding subject:", error);
-      toast({ title: "Error", description: "Could not add subject (check console/permissions).", variant: "destructive" });
+      toast({ title: "Error", description: "Could not add subject. Check console for Firestore errors (e.g. permissions).", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -115,25 +120,32 @@ export default function ManageSubjectsPage() {
       fetchSubjects();
     } catch (error) {
       console.error("Error updating subject:", error);
-      toast({ title: "Error", description: "Could not update subject (check console/permissions).", variant: "destructive" });
+      toast({ title: "Error", description: "Could not update subject. Check console for Firestore errors (e.g. permissions).", variant: "destructive" });
     } finally {
       setIsUpdating(false);
     }
   };
 
-  const handleDeleteSubject = async (subjectId: string) => {
-    console.log("ManageSubjectsPage: Attempting to delete subject:", subjectId);
-     if (!window.confirm("Are you sure you want to delete this subject? This action cannot be undone.")) {
-        console.log("ManageSubjectsPage: Deletion cancelled for subject:", subjectId);
-        return;
-     }
+  const openDeleteDialog = (subject: Subject) => {
+    setSubjectToDelete(subject);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteSubject = async () => {
+    if (!subjectToDelete) return;
+    console.log("ManageSubjectsPage: Attempting to delete subject:", subjectToDelete.id);
+    setIsDeleting(true);
     try {
-      await deleteSubjectFromDb(subjectId);
+      await deleteSubjectFromDb(subjectToDelete.id);
       toast({ title: "Success", description: "Subject deleted successfully." });
       fetchSubjects(); 
+      setIsDeleteDialogOpen(false);
+      setSubjectToDelete(null);
     } catch (error) {
       console.error("Error deleting subject:", error);
-      toast({ title: "Error", description: "Could not delete subject. It might be assigned to teachers or have marks recorded (check console/permissions).", variant: "destructive" });
+      toast({ title: "Error", description: "Could not delete subject. It might be assigned or have marks recorded. Check console for Firestore errors (e.g. permissions).", variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
     }
   };
   
@@ -190,6 +202,7 @@ export default function ManageSubjectsPage() {
         </Dialog>
       </div>
 
+      {/* Edit Subject Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {
         setIsEditDialogOpen(isOpen);
         if (!isOpen) setEditingSubject(null);
@@ -216,6 +229,28 @@ export default function ManageSubjectsPage() {
             <Button onClick={handleUpdateSubject} disabled={isUpdating || !editingSubject}>
               {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Update Subject
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Subject Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={(isOpen) => {
+        setIsDeleteDialogOpen(isOpen);
+        if(!isOpen) setSubjectToDelete(null);
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Subject</DialogTitle>
+            <UiDialogDescription>
+              Are you sure you want to delete {subjectToDelete?.name} ({subjectToDelete?.code})? This action cannot be undone.
+            </UiDialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+            <Button variant="destructive" onClick={handleDeleteSubject} disabled={isDeleting}>
+              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Delete Subject
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -269,7 +304,7 @@ export default function ManageSubjectsPage() {
                             <DropdownMenuItem onClick={() => openEditDialog(subject)}>
                               <Edit2 className="mr-2 h-4 w-4" /> Edit Subject
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => handleDeleteSubject(subject.id)}>
+                            <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => openDeleteDialog(subject)}>
                               <Trash2 className="mr-2 h-4 w-4" /> Delete Subject
                             </DropdownMenuItem>
                           </DropdownMenuContent>

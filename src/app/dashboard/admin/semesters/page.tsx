@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose, DialogDescription as UiDialogDescription } from "@/components/ui/dialog"; // Renamed DialogDescription
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose, DialogDescription as UiDialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/auth-provider";
 import { addSemester, getSemesters, deleteSemester as deleteSemesterFromDb, updateSemester } from "@/lib/firestore/semesters";
@@ -45,6 +45,11 @@ export default function ManageSemestersPage() {
   const [editSemesterStartDate, setEditSemesterStartDate] = useState("");
   const [editSemesterEndDate, setEditSemesterEndDate] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // Delete Dialog State
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [semesterToDelete, setSemesterToDelete] = useState<Semester | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
 
   useEffect(() => {
@@ -99,7 +104,7 @@ export default function ManageSemestersPage() {
       fetchSemesters(); 
     } catch (error) {
       console.error("Error adding semester:", error);
-      toast({ title: "Error", description: "Could not add semester (check console/permissions).", variant: "destructive" });
+      toast({ title: "Error", description: "Could not add semester. Check console for Firestore errors (e.g. permissions).", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -135,25 +140,32 @@ export default function ManageSemestersPage() {
         fetchSemesters();
     } catch (error) {
         console.error("Error updating semester:", error);
-        toast({ title: "Error", description: "Could not update semester (check console/permissions).", variant: "destructive" });
+        toast({ title: "Error", description: "Could not update semester. Check console for Firestore errors (e.g. permissions).", variant: "destructive" });
     } finally {
         setIsUpdating(false);
     }
   };
 
-  const handleDeleteSemester = async (semesterId: string) => {
-    console.log("ManageSemestersPage: Attempting to delete semester:", semesterId);
-    if (!window.confirm("Are you sure you want to delete this semester? This action cannot be undone.")) {
-        console.log("ManageSemestersPage: Deletion cancelled for semester:", semesterId);
-        return;
-    }
+  const openDeleteDialog = (semester: Semester) => {
+    setSemesterToDelete(semester);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteSemester = async () => {
+    if(!semesterToDelete) return;
+    console.log("ManageSemestersPage: Attempting to delete semester:", semesterToDelete.id);
+    setIsDeleting(true);
     try {
-      await deleteSemesterFromDb(semesterId);
+      await deleteSemesterFromDb(semesterToDelete.id);
       toast({ title: "Success", description: "Semester deleted successfully." });
       fetchSemesters(); 
+      setIsDeleteDialogOpen(false);
+      setSemesterToDelete(null);
     } catch (error) {
       console.error("Error deleting semester:", error);
-      toast({ title: "Error", description: "Could not delete semester. It might be in use or there was a server error (check console/permissions).", variant: "destructive" });
+      toast({ title: "Error", description: "Could not delete semester. It might be in use or there was a server error. Check console for Firestore errors (e.g. permissions).", variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
     }
   };
   
@@ -168,7 +180,6 @@ export default function ManageSemestersPage() {
     if (isValid(dateObj)) {
         return format(dateObj, "MMM dd, yyyy");
     }
-    // Fallback if dateString is already in a format that new Date() can parse but not parseISO
     const directDateObj = new Date(dateString);
     if (isValid(directDateObj)) {
         return format(directDateObj, "MMM dd, yyyy");
@@ -250,6 +261,7 @@ export default function ManageSemestersPage() {
         </Dialog>
       </div>
 
+      {/* Edit Semester Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {
         setIsEditDialogOpen(isOpen);
         if (!isOpen) setEditingSemester(null);
@@ -284,6 +296,28 @@ export default function ManageSemestersPage() {
             <Button onClick={handleUpdateSemester} disabled={isUpdating || !editingSemester}>
               {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Update Semester
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Semester Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={(isOpen) => {
+        setIsDeleteDialogOpen(isOpen);
+        if(!isOpen) setSemesterToDelete(null);
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Semester</DialogTitle>
+            <UiDialogDescription>
+              Are you sure you want to delete {semesterToDelete?.name} ({semesterToDelete?.year})? This action cannot be undone.
+            </UiDialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+            <Button variant="destructive" onClick={handleDeleteSemester} disabled={isDeleting}>
+              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Delete Semester
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -342,10 +376,10 @@ export default function ManageSemestersPage() {
                             <DropdownMenuItem onClick={() => openEditDialog(semester)}>
                               <Edit2 className="mr-2 h-4 w-4" /> Edit Semester
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => console.log("Set academic calendar TODO for:", semester.id) }>
+                            <DropdownMenuItem onClick={() => toast({ title: "Coming Soon", description: "Academic calendar feature is under development."}) }>
                               <CalendarDays className="mr-2 h-4 w-4" /> Set Academic Calendar
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => handleDeleteSemester(semester.id)}>
+                            <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => openDeleteDialog(semester)}>
                               <Trash2 className="mr-2 h-4 w-4" /> Delete Semester
                             </DropdownMenuItem>
                           </DropdownMenuContent>

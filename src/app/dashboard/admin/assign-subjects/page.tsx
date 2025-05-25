@@ -56,6 +56,11 @@ export default function AssignSubjectsPage() {
   const [editAssignmentSemesterId, setEditAssignmentSemesterId] = useState<string>("");
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // Delete Dialog State
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [assignmentToDelete, setAssignmentToDelete] = useState<TeacherSubjectAssignment | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
 
   useEffect(() => {
     if (!authLoading && (!user || user.role !== "admin")) {
@@ -133,17 +138,6 @@ export default function AssignSubjectsPage() {
     }
   }, [user, authLoading, filterTeacher, filterSubject, filterSemester, fetchAssignments, isLoadingPrerequisites]); 
 
-  useEffect(() => {
-    console.log("AssignSubjectsPage: Filter Teacher changed to:", filterTeacher);
-  }, [filterTeacher]);
-  useEffect(() => {
-    console.log("AssignSubjectsPage: Filter Subject changed to:", filterSubject);
-  }, [filterSubject]);
-  useEffect(() => {
-    console.log("AssignSubjectsPage: Filter Semester changed to:", filterSemester);
-  }, [filterSemester]);
-
-
   const handleAddAssignment = async () => {
     if (!newAssignmentTeacherUid || !newAssignmentSubjectId || !newAssignmentSemesterId) {
       toast({ title: "Validation Error", description: "Please select a teacher, subject, and semester.", variant: "destructive" });
@@ -186,7 +180,7 @@ export default function AssignSubjectsPage() {
       fetchAssignments(); 
     } catch (error) {
       console.error("AssignSubjectsPage: Error adding assignment:", error);
-      toast({ title: "Error Adding Assignment", description: "Could not add assignment. It might already exist or there was a server error (check console/permissions).", variant: "destructive" });
+      toast({ title: "Error Adding Assignment", description: "Could not add assignment. It might already exist or there was a server error. Check console for Firestore errors (e.g. permissions).", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -238,26 +232,33 @@ export default function AssignSubjectsPage() {
       fetchAssignments();
     } catch (error) {
       console.error("AssignSubjectsPage: Error updating assignment:", error);
-      toast({ title: "Error Updating Assignment", description: "Could not update assignment (check console/permissions).", variant: "destructive" });
+      toast({ title: "Error Updating Assignment", description: "Could not update assignment. Check console for Firestore errors (e.g. permissions).", variant: "destructive" });
     } finally {
       setIsUpdating(false);
     }
   };
 
-  const handleDeleteAssignment = async (assignmentId: string) => {
-    console.log("AssignSubjectsPage: Attempting to delete assignment:", assignmentId);
-    if (!window.confirm("Are you sure you want to delete this assignment? This action cannot be undone.")) {
-        console.log("AssignSubjectsPage: Deletion cancelled by user for assignment:", assignmentId);
-        return;
-    }
+  const openDeleteDialog = (assignment: TeacherSubjectAssignment) => {
+    setAssignmentToDelete(assignment);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteAssignment = async () => {
+    if(!assignmentToDelete) return;
+    console.log("AssignSubjectsPage: Attempting to delete assignment:", assignmentToDelete.id);
+    setIsDeleting(true);
     try {
-      await deleteAssignmentFromDb(assignmentId);
-      console.log("AssignSubjectsPage: Successfully deleted assignment:", assignmentId);
+      await deleteAssignmentFromDb(assignmentToDelete.id);
+      console.log("AssignSubjectsPage: Successfully deleted assignment:", assignmentToDelete.id);
       toast({ title: "Success", description: "Assignment deleted successfully." });
       fetchAssignments(); 
+      setIsDeleteDialogOpen(false);
+      setAssignmentToDelete(null);
     } catch (error) {
       console.error("AssignSubjectsPage: Error deleting assignment:", error);
-      toast({ title: "Error Deleting Assignment", description: "Could not delete assignment (check console/permissions).", variant: "destructive" });
+      toast({ title: "Error Deleting Assignment", description: "Could not delete assignment. Check console for Firestore errors (e.g. permissions).", variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
     }
   };
   
@@ -348,6 +349,7 @@ export default function AssignSubjectsPage() {
         </Dialog>
       </div>
 
+      {/* Edit Assignment Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {
         setIsEditDialogOpen(isOpen);
         if (!isOpen) setEditingAssignment(null); 
@@ -400,10 +402,36 @@ export default function AssignSubjectsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Delete Assignment Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={(isOpen) => {
+        setIsDeleteDialogOpen(isOpen);
+        if(!isOpen) setAssignmentToDelete(null);
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Assignment</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this assignment: <br />
+              Teacher: {assignmentToDelete?.teacherName} <br />
+              Subject: {assignmentToDelete?.subjectName} <br />
+              Semester: {assignmentToDelete?.semesterName} <br />
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+            <Button variant="destructive" onClick={handleDeleteAssignment} disabled={isDeleting}>
+              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Delete Assignment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Current Assignments</CardTitle>
-          <CardDescription>List of subjects assigned to teachers for various semesters. If filters don't work or data is missing, **check browser console (F12) for Firestore index errors or permission issues.**</CardDescription>
+          <CardDescription>List of subjects assigned to teachers for various semesters. If filters don't work or data is missing, <strong>check browser console (F12) for Firestore index errors or permission issues.</strong></CardDescription>
           <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             <div className="md:col-span-1">
               <Label htmlFor="teacherFilter" className="text-sm font-medium">Filter by Teacher</Label>
@@ -473,7 +501,7 @@ export default function AssignSubjectsPage() {
                             <DropdownMenuItem onClick={() => openEditDialog(assignment)}>
                               <Edit2 className="mr-2 h-4 w-4" /> Edit
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => handleDeleteAssignment(assignment.id)}>
+                            <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive" onClick={() => openDeleteDialog(assignment)}>
                               <Trash2 className="mr-2 h-4 w-4" /> Delete
                             </DropdownMenuItem>
                           </DropdownMenuContent>

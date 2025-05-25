@@ -1,3 +1,4 @@
+
 // src/app/dashboard/layout.tsx
 "use client";
 
@@ -15,7 +16,7 @@ import { UserNav } from "@/components/dashboard/user-nav";
 import { NavLinks } from "@/components/dashboard/nav-links";
 import { useAuth } from "@/contexts/auth-provider";
 import { MeritTracLogo } from "@/components/icons/logo";
-import { Bell, Search, Settings } from "lucide-react";
+import { Bell, Search, Settings, Loader2 } from "lucide-react"; // Added Loader2
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -37,6 +38,7 @@ export default function DashboardLayout({
   if (loading || !user) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
+        <Loader2 className="mr-2 h-8 w-8 animate-spin text-primary" />
         <p className="text-lg text-foreground">Loading dashboard...</p>
       </div>
     );
@@ -86,7 +88,7 @@ export default function DashboardLayout({
             <UserNav />
           </div>
         </header>
-        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto">
+        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-auto"> {/* Changed overflow-y-auto to overflow-auto */}
           {children}
         </main>
       </SidebarInset>
